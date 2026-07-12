@@ -1,4 +1,6 @@
 // Cliente de IA — habla con el proxy serverless /api/agent (Anthropic API).
+import { CECOS, SENIORITIES } from '../data/seed.js';
+
 const MODEL = 'claude-sonnet-4-20250514';
 
 async function callClaude(messages, system, maxTokens = 1200) {
@@ -39,27 +41,43 @@ const PARAM_SCHEMA = `{
   "ajustePerformancePct": number (0-1),
   "provisionIndemnizacionPct": number (0-1),
   "topeHorasExtra": number,
-  "seguroManagerUSD": number (USD mensuales, solo Manager/Director/CEO),
-  "bonos.<Seniority>": number (N° de sueldos de bono anual; Seniority ∈ Junior, Standard, Semi Senior, Senior, Team Lead, Head, Manager, Director, CEO)
+  "seguroManagerUSD": number (USD mensuales, solo Manager/Director/CEO)
 }`;
 
-// Interpreta un pedido en lenguaje natural y devuelve una propuesta de cambios estructurada,
-// nunca aplica nada directamente — la UI la muestra como diff y el usuario confirma.
+// Interpreta un pedido en lenguaje natural y devuelve una propuesta de cambios estructurada
+// (nuevos costeos, o ajustes a parámetros/bonos existentes) — nunca aplica nada directamente,
+// la UI la muestra como diff y el usuario confirma cada cambio.
 export async function proponerCambiosParametros(textoUsuario, parametrosActuales, bonosActuales) {
   // parametrosActuales es una lista [{key, valor, ...}] — se manda como mapa key:valor simple para la IA.
   const parametrosMap = Object.fromEntries(parametrosActuales.map((p) => [p.key, p.valor]));
-  const system = `Sos el copiloto de configuración de Nomia, una app de presupuesto de payroll para PyMEs argentinas.
-El usuario va a describir en lenguaje natural un cambio de política de costos (ej: un reclamo sindical, un nuevo beneficio, un ajuste de bono).
-Tu trabajo es traducir ese pedido a cambios concretos sobre estos parámetros (esquema): ${PARAM_SCHEMA}
-Si un parámetro del esquema no aparece en el estado actual, es porque el usuario lo eliminó — no propongas cambios sobre parámetros ausentes.
+  const system = `Sos el copiloto de costeo de Nomia, una app de presupuesto de payroll para PyMEs argentinas.
+El usuario describe en lenguaje natural un pedido de costeo. Puede ser: (a) un COSTEO NUEVO que no existe todavía
+(aporte sindical, beneficio, seguro, premio — algo que se suma al presupuesto), o un ajuste a (b) un parámetro
+estructural existente, o (c) el bono anual de un seniority. Elegí el tipo que corresponda para cada cambio que detectes.
+
+(a) Costeo nuevo — "tipo":"nuevo_concepto":
+{"tipo":"nuevo_concepto","label":"<nombre del costeo>","conceptoTipo":"pctSueldo"|"montoFijo","valorNuevo":<number>,"alcance":{"tipo":"todos"|"ceco"|"seniority","valor":<code o null>},"justificacion":"<por qué>"}
+- "pctSueldo": valorNuevo es % del sueldo bruto mensual, como número (2 → 2%), NUNCA como fracción (nunca 0.02).
+- "montoFijo": valorNuevo es un monto fijo en ARS por mes.
+- alcance.valor: si alcance.tipo es "ceco", uno de estos códigos: ${CECOS.map((c) => `${c.code} (${c.label})`).join(', ')}. Si es "seniority", uno de: ${SENIORITIES.join(', ')}. Si es "todos", null.
+
+(b) Ajuste a un parámetro estructural existente — "tipo":"parametro":
+{"tipo":"parametro","path":"<clave del esquema>","label":"<nombre humano>","valorActual":<valor actual>,"valorNuevo":<valor propuesto>,"justificacion":"..."}
+Esquema: ${PARAM_SCHEMA}. Los porcentajes acá SÍ van como fracción (2% → 0.02).
+Si una clave no aparece en "Estado actual de parámetros" es porque el usuario la eliminó — no la ajustes; si el pedido
+igual tiene sentido, proponela como "nuevo_concepto" en su lugar.
+
+(c) Ajuste al bono anual de un seniority — "tipo":"bono":
+{"tipo":"bono","path":"bonos.<Seniority>","label":"Bono <Seniority>","valorActual":{"tipo":"sueldos"|"pctAnual","valor":number},"valorNuevo":{"tipo":"sueldos"|"pctAnual","valor":number},"justificacion":"..."}
+"sueldos" = cantidad de sueldos extra por año (valor=3 → 3 sueldos). "pctAnual" = % del salario anual, y ACÁ SÍ va
+como fracción (20% → 0.2), igual que los parámetros estructurales. Seniority ∈ ${SENIORITIES.join(', ')}.
 
 Estado actual de parámetros: ${JSON.stringify(parametrosMap)}
 Estado actual de bonos por seniority: ${JSON.stringify(bonosActuales)}
 
 Respondé SOLO con JSON (sin texto ni markdown alrededor), con esta forma exacta:
-{"cambios": [{"path": "<clave del esquema>", "label": "<nombre humano del parámetro>", "valorActual": <valor actual>, "valorNuevo": <valor propuesto>, "justificacion": "<por qué, en una frase>"}], "resumen": "<resumen de 1-2 frases de la interpretación>"}
-Si el pedido es ambiguo o no corresponde a ningún parámetro del esquema, devolvé "cambios": [] y explicá por qué en "resumen".
-Los porcentajes siempre van como fracción (2% → 0.02), nunca como 2.`;
+{"cambios": [ /* uno o más objetos de tipo (a), (b) o (c) */ ], "resumen": "<resumen de 1-2 frases de la interpretación>"}
+Si el pedido es ambiguo o no corresponde a nada de esto, devolvé "cambios": [] y explicá por qué en "resumen".`;
 
   const text = await callClaude([{ role: 'user', content: textoUsuario }], system);
   return parseJson(text);

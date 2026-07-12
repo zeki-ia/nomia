@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TopBar, Page, Card, Field, Button, Modal, inputStyle, Spinner, Badge } from '../components/ui.jsx';
-import { SENIORITIES, CECOS, COLORS, CONCEPTO_TIPOS, CONCEPTO_ALCANCES, MESES, PARAMETRO_CATALOGO } from '../data/seed.js';
+import { SENIORITIES, CECOS, COLORS, CONCEPTO_TIPOS, CONCEPTO_ALCANCES, MESES, PARAMETRO_CATALOGO, BONO_TIPOS } from '../data/seed.js';
 import { fmtARS, fmtPct } from '../lib/payrollEngine.js';
 import { proponerCambiosParametros } from '../lib/aiClient.js';
 
@@ -8,7 +8,6 @@ const TABS = [
   { key: 'macro', label: 'Supuestos macro' },
   { key: 'costeo', label: 'Costeo' },
   { key: 'bonos', label: 'Bonos por seniority' },
-  { key: 'conceptos', label: 'Conceptos' },
   { key: 'copiloto', label: '✦ Copiloto IA' },
 ];
 
@@ -37,18 +36,23 @@ export default function Parametros({
         </div>
 
         {tab === 'macro' && <MacroTab macro={macro} setMacro={setMacro} />}
-        {tab === 'costeo' && <CosteoTab parametros={parametros} setParametros={setParametros} />}
-        {tab === 'bonos' && <BonosTab bonos={bonos} setBonos={setBonos} />}
-        {tab === 'conceptos' && (
-          <ConceptosTab
-            conceptos={conceptosCustom}
-            onCrear={onCrearConcepto}
-            onActualizar={onActualizarConcepto}
-            onEliminar={onEliminarConcepto}
-          />
+        {tab === 'costeo' && (
+          <>
+            <CosteoTab parametros={parametros} setParametros={setParametros} />
+            <ConceptosTab
+              conceptos={conceptosCustom}
+              onCrear={onCrearConcepto}
+              onActualizar={onActualizarConcepto}
+              onEliminar={onEliminarConcepto}
+            />
+          </>
         )}
+        {tab === 'bonos' && <BonosTab bonos={bonos} setBonos={setBonos} />}
         {tab === 'copiloto' && (
-          <CopilotoTab parametros={parametros} bonos={bonos} setParametros={setParametros} setBonos={setBonos} />
+          <CopilotoTab
+            parametros={parametros} bonos={bonos} setParametros={setParametros} setBonos={setBonos}
+            onCrearConcepto={onCrearConcepto}
+          />
         )}
       </Page>
     </>
@@ -148,10 +152,11 @@ function CosteoTab({ parametros, setParametros }) {
 
   return (
     <Card>
+      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Parámetros estructurales</h3>
       <div style={{ fontSize: 12.5, color: COLORS.muted, marginBottom: 16 }}>
-        Estos parámetros alimentan fórmulas puntuales del motor (aguinaldo, vacaciones, cargas sociales). Si tu empresa
-        no aplica alguno, eliminalo — el motor lo trata como si valiera 0. Para costos nuevos que no están acá, usá la
-        pestaña "Conceptos".
+        Estos alimentan fórmulas puntuales del motor (aguinaldo, vacaciones, cargas sociales). Si tu empresa
+        no aplica alguno, eliminalo — el motor lo trata como si valiera 0. Para costeos nuevos que no están acá,
+        usá "Otros costeos" más abajo.
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -186,19 +191,36 @@ function CosteoTab({ parametros, setParametros }) {
 }
 
 function BonosTab({ bonos, setBonos }) {
-  const set = (seniority, value) => setBonos((b) => ({ ...b, [seniority]: value }));
+  // Igual que el resto de la app: los % se guardan como fracción (0.2 = 20%), nunca como 20.
+  const setValor = (seniority, displayValue) => setBonos((b) => {
+    const current = b[seniority] || { tipo: 'sueldos', valor: 0 };
+    const valor = current.tipo === 'pctAnual' ? displayValue / 100 : displayValue;
+    return { ...b, [seniority]: { ...current, valor } };
+  });
+  const setTipo = (seniority, tipo) => setBonos((b) => ({ ...b, [seniority]: { ...(b[seniority] || { valor: 0 }), tipo } }));
+
   return (
     <Card>
       <div style={{ fontSize: 12.5, color: COLORS.muted, marginBottom: 16 }}>
-        N° de sueldos de bono anual por seniority. Se mensualiza como (N° sueldos × sueldo base) / 12.
+        Bono anual por seniority, como cantidad de sueldos extra o como % del salario anual. Se mensualiza como provisión:
+        "sueldos" → (N × sueldo base)/12; "% del salario anual" → % × sueldo base (por mes).
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {SENIORITIES.map((s) => (
-          <Field key={s} label={s}>
-            <input type="number" step="0.5" style={inputStyle} value={bonos[s] ?? 0}
-              onChange={(e) => set(s, Number(e.target.value))} />
-          </Field>
-        ))}
+        {SENIORITIES.map((s) => {
+          const bono = bonos[s] || { tipo: 'sueldos', valor: 0 };
+          const displayValue = bono.tipo === 'pctAnual' ? bono.valor * 100 : bono.valor;
+          return (
+            <Field key={s} label={s}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="number" step="0.5" style={{ ...inputStyle, flex: '0 0 100px' }} value={displayValue}
+                  onChange={(e) => setValor(s, Number(e.target.value))} />
+                <select style={inputStyle} value={bono.tipo} onChange={(e) => setTipo(s, e.target.value)}>
+                  {BONO_TIPOS.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                </select>
+              </div>
+            </Field>
+          );
+        })}
       </div>
     </Card>
   );
@@ -218,15 +240,19 @@ function ConceptosTab({ conceptos, onCrear, onActualizar, onEliminar }) {
   return (
     <Card>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12 }}>
-        <div style={{ fontSize: 12.5, color: COLORS.muted, maxWidth: 520 }}>
-          Variables de costo propias de la empresa: aportes sindicales, beneficios extra u otros conceptos que no están en el modelo base.
-          Se aplican como % del sueldo bruto mensual o como monto fijo en ARS, a todos los empleados o a un centro de costo / seniority puntual.
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Otros costeos</h3>
+          <div style={{ fontSize: 12.5, color: COLORS.muted, maxWidth: 520 }}>
+            Costeos propios de la empresa: aportes sindicales, beneficios extra u otros conceptos que no están en el modelo base.
+            Se incluyen en el costeo como % del sueldo bruto mensual o como monto fijo en ARS, a todos los empleados o a un
+            centro de costo / seniority puntual. También los puede crear el Copiloto IA a partir de un pedido en lenguaje natural.
+          </div>
         </div>
-        <Button onClick={() => setModal('new')}>+ Nuevo concepto</Button>
+        <Button onClick={() => setModal('new')}>+ Nuevo costeo</Button>
       </div>
 
       {conceptos.length === 0 ? (
-        <div style={{ fontSize: 13, color: COLORS.muted, padding: '20px 0' }}>Todavía no creaste ningún concepto propio.</div>
+        <div style={{ fontSize: 13, color: COLORS.muted, padding: '20px 0' }}>Todavía no creaste ningún costeo propio.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {conceptos.map((c) => (
@@ -263,7 +289,7 @@ function ConceptosTab({ conceptos, onCrear, onActualizar, onEliminar }) {
       )}
 
       {aEliminar && (
-        <Modal title="Eliminar concepto" onClose={() => setAEliminar(null)}>
+        <Modal title="Eliminar costeo" onClose={() => setAEliminar(null)}>
           <div style={{ fontSize: 14, color: COLORS.navy, marginBottom: 20 }}>
             ¿Seguro que querés eliminar "{aEliminar.nombre}"? Va a dejar de sumarse al presupuesto.
           </div>
@@ -304,7 +330,7 @@ function ConceptoModal({ concepto, onClose, onSave }) {
   };
 
   return (
-    <Modal title={concepto ? 'Editar concepto' : 'Nuevo concepto'} onClose={onClose} width={480}>
+    <Modal title={concepto ? 'Editar costeo' : 'Nuevo costeo'} onClose={onClose} width={480}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Field label="Nombre">
           <input style={inputStyle} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Aporte sindical" />
@@ -338,13 +364,29 @@ function ConceptoModal({ concepto, onClose, onSave }) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
         <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-        <Button onClick={guardar} disabled={!puedeGuardar}>{concepto ? 'Guardar cambios' : 'Crear concepto'}</Button>
+        <Button onClick={guardar} disabled={!puedeGuardar}>{concepto ? 'Guardar cambios' : 'Crear costeo'}</Button>
       </div>
     </Modal>
   );
 }
 
-function CopilotoTab({ parametros, bonos, setParametros, setBonos }) {
+function cambioValorLabel(c) {
+  if (c.tipo === 'nuevo_concepto') return c.conceptoTipo === 'pctSueldo' ? `${c.valorNuevo}%` : fmtARS(c.valorNuevo);
+  if (typeof c.valorNuevo === 'object' && c.valorNuevo) {
+    return c.valorNuevo.tipo === 'pctAnual' ? `${fmtPct(c.valorNuevo.valor)} anual` : `${c.valorNuevo.valor} sueldos`;
+  }
+  return String(c.valorNuevo);
+}
+
+function cambioValorActualLabel(c) {
+  if (c.tipo === 'nuevo_concepto') return 'nuevo';
+  if (typeof c.valorActual === 'object' && c.valorActual) {
+    return c.valorActual.tipo === 'pctAnual' ? `${fmtPct(c.valorActual.valor)} anual` : `${c.valorActual.valor} sueldos`;
+  }
+  return String(c.valorActual);
+}
+
+function CopilotoTab({ parametros, bonos, setParametros, setBonos, onCrearConcepto }) {
   const [texto, setTexto] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -370,7 +412,15 @@ function CopilotoTab({ parametros, bonos, setParametros, setBonos }) {
   const aplicarCambios = () => {
     (propuesta.cambios || []).forEach((c, i) => {
       if (!seleccion[i]) return;
-      if (c.path.startsWith('bonos.')) {
+      if (c.tipo === 'nuevo_concepto') {
+        onCrearConcepto({
+          nombre: c.label,
+          tipo: c.conceptoTipo,
+          valor: c.conceptoTipo === 'pctSueldo' ? Number(c.valorNuevo) / 100 : Number(c.valorNuevo),
+          alcance: c.alcance || { tipo: 'todos' },
+          activo: true,
+        });
+      } else if (c.tipo === 'bono') {
         const seniority = c.path.replace('bonos.', '');
         setBonos((b) => ({ ...b, [seniority]: c.valorNuevo }));
       } else {
@@ -382,16 +432,17 @@ function CopilotoTab({ parametros, bonos, setParametros, setBonos }) {
 
   return (
     <Card>
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Configurá parámetros en lenguaje natural</h3>
+      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Configurá costeos en lenguaje natural</h3>
       <div style={{ fontSize: 12.5, color: COLORS.muted, marginBottom: 14 }}>
-        Ej: "el sindicato de comercio pide 2% adicional sobre el sueldo bruto" o "subí el bono de los gerentes a 4 sueldos".
-        La IA propone el cambio, vos lo confirmás antes de aplicarlo.
+        Ej: "el sindicato de comercio pide 2% adicional sobre el sueldo bruto de todo el equipo de ventas" (crea un costeo nuevo),
+        "subí el bono de los gerentes a 4 sueldos" o "el bono de los directores pasa a ser 20% del salario anual" (edita un
+        parámetro existente). La IA propone el cambio, vos lo confirmás antes de aplicarlo.
       </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <textarea
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="Describí el cambio de política de costos…"
+          placeholder="Describí el costeo o cambio de política…"
           rows={3}
           style={{ ...inputStyle, flex: 1, resize: 'vertical' }}
         />
@@ -405,7 +456,7 @@ function CopilotoTab({ parametros, bonos, setParametros, setBonos }) {
         <div>
           <div style={{ fontSize: 13.5, color: COLORS.navy, marginBottom: 16, fontStyle: 'italic' }}>{propuesta.resumen}</div>
           {(propuesta.cambios || []).length === 0 ? (
-            <div style={{ fontSize: 13, color: COLORS.muted }}>No se detectaron cambios de parámetros para este pedido.</div>
+            <div style={{ fontSize: 13, color: COLORS.muted }}>No se detectaron costeos ni cambios para este pedido.</div>
           ) : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
@@ -417,12 +468,14 @@ function CopilotoTab({ parametros, bonos, setParametros, setBonos }) {
                     <input type="checkbox" checked={!!seleccion[i]}
                       onChange={(e) => setSeleccion((s) => ({ ...s, [i]: e.target.checked }))} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{c.label}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+                        {c.label} {c.tipo === 'nuevo_concepto' && <Badge tone="blue">nuevo costeo</Badge>}
+                      </div>
                       <div style={{ fontSize: 12.5, color: COLORS.muted }}>{c.justificacion}</div>
                     </div>
-                    <Badge tone="default">{c.valorActual}</Badge>
+                    <Badge tone="default">{cambioValorActualLabel(c)}</Badge>
                     <span style={{ color: COLORS.mutedSoft }}>→</span>
-                    <Badge tone="green">{c.valorNuevo}</Badge>
+                    <Badge tone="green">{cambioValorLabel(c)}</Badge>
                   </label>
                 ))}
               </div>

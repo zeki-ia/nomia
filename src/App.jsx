@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Sidebar, Spinner } from './components/ui.jsx';
 import { COLORS } from './data/seed.js';
@@ -54,8 +54,19 @@ export default function App() {
     [empleados, parametros, macro, bonos, conceptosCustom]
   );
 
-  const persistConfiguracion = useCallback(async (patch) => {
-    await supabase.from('nomia_configuracion').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', 1);
+  // Cambios seguidos (ej: tipeando varios meses de IPC, o tipo+valor de un bono) se
+  // acumulan y mandan en un solo request — dos updates casi simultáneos pueden resolver
+  // en cualquier orden y el más nuevo terminaría pisado por el más viejo.
+  const pendingPatchRef = useRef({});
+  const flushTimeoutRef = useRef(null);
+  const persistConfiguracion = useCallback((patch) => {
+    Object.assign(pendingPatchRef.current, patch);
+    clearTimeout(flushTimeoutRef.current);
+    flushTimeoutRef.current = setTimeout(async () => {
+      const toSend = pendingPatchRef.current;
+      pendingPatchRef.current = {};
+      await supabase.from('nomia_configuracion').update({ ...toSend, updated_at: new Date().toISOString() }).eq('id', 1);
+    }, 400);
   }, []);
 
   const updateParametros = useCallback((updater) => {

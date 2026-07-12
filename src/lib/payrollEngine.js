@@ -77,8 +77,10 @@ export function computeEmpleadoMes(empleado, mesIndex, series, parametros, bonos
   const horasExtras = round((sueldoBase / 30 / 8) * empleado.horasExtraN * paramValue(parametros, 'topeHorasExtra'));
   const totalVariable = comisiones + bonoCustomer + horasExtras;
 
-  const nSueldosBono = bonos[empleado.seniority] || 0;
-  const bonoAnual = round((nSueldosBono * sueldoBase) / 12);
+  const bono = bonos[empleado.seniority];
+  const bonoAnual = !bono ? 0
+    : bono.tipo === 'pctAnual' ? round(sueldoBase * bono.valor)
+    : round((bono.valor * sueldoBase) / 12);
 
   const sac = round((sueldoBase + totalVariable + bonoAnual) / 12);
 

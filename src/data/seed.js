@@ -38,16 +38,23 @@ export const CECOS = [
   { code: 'BILL', label: 'Facturación' },
 ];
 
+export const BONO_TIPOS = [
+  { code: 'sueldos', label: 'Cantidad de sueldos/año' },
+  { code: 'pctAnual', label: '% del salario anual' },
+];
+
+// Por seniority: bono anual como N sueldos extra, o como % del salario anual.
+// Se mensualiza como provisión: sueldos → (valor × sueldoBase)/12; pctAnual → valor × sueldoBase.
 export const DEFAULT_BONOS = {
-  'Junior': 0,
-  'Standard': 0,
-  'Semi Senior': 0,
-  'Senior': 0,
-  'Team Lead': 1,
-  'Head': 2,
-  'Manager': 3,
-  'Director': 4,
-  'CEO': 6,
+  'Junior': { tipo: 'sueldos', valor: 0 },
+  'Standard': { tipo: 'sueldos', valor: 0 },
+  'Semi Senior': { tipo: 'sueldos', valor: 0 },
+  'Senior': { tipo: 'sueldos', valor: 0 },
+  'Team Lead': { tipo: 'sueldos', valor: 1 },
+  'Head': { tipo: 'sueldos', valor: 2 },
+  'Manager': { tipo: 'sueldos', valor: 3 },
+  'Director': { tipo: 'sueldos', valor: 4 },
+  'CEO': { tipo: 'sueldos', valor: 6 },
 };
 
 export const PARAM_UNIDADES = [
