@@ -46,11 +46,14 @@ const PARAM_SCHEMA = `{
 // Interpreta un pedido en lenguaje natural y devuelve una propuesta de cambios estructurada,
 // nunca aplica nada directamente — la UI la muestra como diff y el usuario confirma.
 export async function proponerCambiosParametros(textoUsuario, parametrosActuales, bonosActuales) {
+  // parametrosActuales es una lista [{key, valor, ...}] — se manda como mapa key:valor simple para la IA.
+  const parametrosMap = Object.fromEntries(parametrosActuales.map((p) => [p.key, p.valor]));
   const system = `Sos el copiloto de configuración de Nomia, una app de presupuesto de payroll para PyMEs argentinas.
 El usuario va a describir en lenguaje natural un cambio de política de costos (ej: un reclamo sindical, un nuevo beneficio, un ajuste de bono).
 Tu trabajo es traducir ese pedido a cambios concretos sobre estos parámetros (esquema): ${PARAM_SCHEMA}
+Si un parámetro del esquema no aparece en el estado actual, es porque el usuario lo eliminó — no propongas cambios sobre parámetros ausentes.
 
-Estado actual de parámetros: ${JSON.stringify(parametrosActuales)}
+Estado actual de parámetros: ${JSON.stringify(parametrosMap)}
 Estado actual de bonos por seniority: ${JSON.stringify(bonosActuales)}
 
 Respondé SOLO con JSON (sin texto ni markdown alrededor), con esta forma exacta:

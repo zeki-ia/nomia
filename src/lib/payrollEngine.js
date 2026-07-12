@@ -17,25 +17,34 @@ function diasVacacionesPorAntiguedad(years) {
   return 14;
 }
 
-// Serie de 12 meses que compone un valor mensual con una tasa fija (IPC, devaluación, etc.)
-function serieCompuesta(base, tasaPct, months = 12) {
+// Serie de 12 meses que compone un valor mensual con una tasa variable por mes (IPC,
+// devaluación, etc.). `tasas[m]` es la tasa aplicada al pasar del mes m-1 al mes m
+// (tasas[0], la de Ene, no se usa: Ene es el valor base de la serie).
+function serieCompuesta(base, tasas, months = 12) {
   const out = [base];
-  for (let m = 1; m < months; m++) out.push(out[m - 1] * (1 + tasaPct));
+  for (let m = 1; m < months; m++) out.push(out[m - 1] * (1 + (tasas[m] ?? 0)));
   return out;
 }
 
-// Índice salarial acumulado: Ene = 1, luego compone el ajuste salarial mensual.
+// Índice salarial acumulado: Ene = 1, luego compone el ajuste salarial de cada mes.
 function serieIndiceSalarial(ajusteSalarialPct, months = 12) {
   const out = [1];
-  for (let m = 1; m < months; m++) out.push(out[m - 1] * (1 + ajusteSalarialPct));
+  for (let m = 1; m < months; m++) out.push(out[m - 1] * (1 + (ajusteSalarialPct[m] ?? 0)));
   return out;
+}
+
+// `parametros` es una lista (no un objeto fijo): se pueden eliminar filas del catálogo
+// estructural, y el motor las trata como neutras (0) en vez de romper el cálculo.
+function paramValue(parametros, key, fallback = 0) {
+  const item = parametros.find((p) => p.key === key);
+  return item ? item.valor : fallback;
 }
 
 export function buildSeries(parametros, macro, conceptosCustom = [], year = 2026) {
   const indiceSalarial = serieIndiceSalarial(macro.ajusteSalarialPct);
-  const alimentacion = serieCompuesta(parametros.alimentacion, macro.ipcMensualPct);
-  const conectividad = serieCompuesta(parametros.conectividad, macro.ipcMensualPct);
-  const seguroSalud = serieCompuesta(parametros.seguroSalud, macro.ipcMensualPct);
+  const alimentacion = serieCompuesta(paramValue(parametros, 'alimentacion'), macro.ipcMensualPct);
+  const conectividad = serieCompuesta(paramValue(parametros, 'conectividad'), macro.ipcMensualPct);
+  const seguroSalud = serieCompuesta(paramValue(parametros, 'seguroSalud'), macro.ipcMensualPct);
   const tiposCambio = {};
   for (const [key, tc] of Object.entries(macro.tiposCambio)) {
     tiposCambio[key] = serieCompuesta(tc.inicial, tc.devaluacionPct);
@@ -62,10 +71,10 @@ export function computeEmpleadoMes(empleado, mesIndex, series, parametros, bonos
   const activo = empleado.mesesActivo[mesIndex] ? 1 : 0;
   const indice = series.indiceSalarial[mesIndex];
 
-  const sueldoBase = round(empleado.sueldoBase * indice * (1 + parametros.ajustePerformancePct)) * activo;
+  const sueldoBase = round(empleado.sueldoBase * indice * (1 + paramValue(parametros, 'ajustePerformancePct'))) * activo;
   const comisiones = round(sueldoBase * empleado.comisionPct);
   const bonoCustomer = round(sueldoBase * empleado.bonoCustomerPct);
-  const horasExtras = round((sueldoBase / 30 / 8) * empleado.horasExtraN * parametros.topeHorasExtra);
+  const horasExtras = round((sueldoBase / 30 / 8) * empleado.horasExtraN * paramValue(parametros, 'topeHorasExtra'));
   const totalVariable = comisiones + bonoCustomer + horasExtras;
 
   const nSueldosBono = bonos[empleado.seniority] || 0;
@@ -75,18 +84,18 @@ export function computeEmpleadoMes(empleado, mesIndex, series, parametros, bonos
 
   const antiguedad = yearsBetween(empleado.fechaIngreso, series.monthDates[mesIndex]);
   const diasVac = activo === 0 ? 0 : diasVacacionesPorAntiguedad(antiguedad);
-  const plusVacacional = round(((sueldoBase + totalVariable) / 30) * (diasVac / 12) * parametros.plusVacacionalPct);
+  const plusVacacional = round(((sueldoBase + totalVariable) / 30) * (diasVac / 12) * paramValue(parametros, 'plusVacacionalPct'));
 
   const alimentacion = round(series.alimentacion[mesIndex] * activo);
   const conectividad = round(series.conectividad[mesIndex] * activo);
   const seguroSalud = round(series.seguroSalud[mesIndex] * activo);
   const totalBeneficios = alimentacion + conectividad + seguroSalud;
 
-  const contribuciones = round((sueldoBase + totalVariable + sac + bonoAnual + plusVacacional) * parametros.contribucionesPatronalesPct);
-  const seguroMgrUp = round((MANAGER_LEVELS.has(empleado.seniority) ? parametros.seguroManagerUSD * series.tcActivo[mesIndex] : 0) * activo);
+  const contribuciones = round((sueldoBase + totalVariable + sac + bonoAnual + plusVacacional) * paramValue(parametros, 'contribucionesPatronalesPct'));
+  const seguroMgrUp = round((MANAGER_LEVELS.has(empleado.seniority) ? paramValue(parametros, 'seguroManagerUSD') * series.tcActivo[mesIndex] : 0) * activo);
   const totalAportes = contribuciones + seguroMgrUp;
 
-  const provIndemnizacion = round((sueldoBase + totalVariable + bonoAnual + plusVacacional + totalBeneficios + totalAportes) * parametros.provisionIndemnizacionPct);
+  const provIndemnizacion = round((sueldoBase + totalVariable + bonoAnual + plusVacacional + totalBeneficios + totalAportes) * paramValue(parametros, 'provisionIndemnizacionPct'));
 
   const costosCustomPorConcepto = {};
   let costosCustom = 0;

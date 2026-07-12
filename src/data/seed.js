@@ -50,17 +50,29 @@ export const DEFAULT_BONOS = {
   'CEO': 6,
 };
 
-export const DEFAULT_PARAMETROS = {
-  contribucionesPatronalesPct: 0.249,
-  alimentacion: 350000,
-  conectividad: 60000,
-  seguroSalud: 230000,
-  plusVacacionalPct: 0.2,
-  ajustePerformancePct: 0,
-  provisionIndemnizacionPct: 0.03,
-  topeHorasExtra: 0,
-  seguroManagerUSD: 250,
-};
+export const PARAM_UNIDADES = [
+  { code: 'pct', label: '%' },
+  { code: 'ars', label: 'ARS/mes' },
+  { code: 'usd', label: 'USD/mes' },
+];
+
+// Catálogo completo de parámetros estructurales que el motor de cálculo sabe interpretar
+// (cada uno alimenta una fórmula puntual: aguinaldo, vacaciones, cargas sociales, etc.).
+// `parametros` en el estado de la app es un SUBSET de este catálogo — se pueden eliminar
+// filas (el motor las trata como 0/no aplica) y volver a agregarlas desde "Restaurar".
+export const PARAMETRO_CATALOGO = [
+  { key: 'contribucionesPatronalesPct', label: 'Contribuciones patronales (%)', unidad: 'pct', valor: 0.249 },
+  { key: 'alimentacion', label: 'Asignación Alimentación (ARS)', unidad: 'ars', valor: 350000 },
+  { key: 'conectividad', label: 'Asignación Conectividad (ARS)', unidad: 'ars', valor: 60000 },
+  { key: 'seguroSalud', label: 'Seguro de Salud (ARS)', unidad: 'ars', valor: 230000 },
+  { key: 'plusVacacionalPct', label: 'Plus vacacional (%)', unidad: 'pct', valor: 0.2 },
+  { key: 'ajustePerformancePct', label: 'Ajuste performance (%)', unidad: 'pct', valor: 0 },
+  { key: 'provisionIndemnizacionPct', label: 'Provisión indemnización (%)', unidad: 'pct', valor: 0.03 },
+  { key: 'topeHorasExtra', label: 'Tope horas extra', unidad: 'pct', valor: 0 },
+  { key: 'seguroManagerUSD', label: 'Seguro Manager & Up (USD)', unidad: 'usd', valor: 250 },
+];
+
+export const DEFAULT_PARAMETROS = PARAMETRO_CATALOGO.map((p) => ({ ...p }));
 
 export const CONCEPTO_TIPOS = [
   { code: 'pctSueldo', label: '% del sueldo bruto mensual' },
@@ -87,15 +99,18 @@ export const DEFAULT_CONCEPTOS_CUSTOM = [
   },
 ];
 
+// IPC, ajuste salarial y devaluación son arrays de 12 posiciones (una por mes) porque la
+// inflación/devaluación no es uniforme mes a mes. La posición 0 (Ene) no se usa como "tasa"
+// (Ene es el mes base de la serie) — arranca a aplicarse desde la posición 1 (Ene→Feb).
 export const DEFAULT_MACRO = {
-  ipcMensualPct: 0.025,
-  ajusteSalarialPct: 0.025,
+  ipcMensualPct: Array(12).fill(0.025),
+  ajusteSalarialPct: Array(12).fill(0.025),
   tcActivo: 'ccl',
   tiposCambio: {
-    oficial: { label: 'Oficial', inicial: 1300, devaluacionPct: 0.02 },
-    blue:    { label: 'Blue',    inicial: 1360, devaluacionPct: 0.02 },
-    mep:     { label: 'MEP',     inicial: 1330, devaluacionPct: 0.02 },
-    ccl:     { label: 'CCL',     inicial: 1345, devaluacionPct: 0.02 },
+    oficial: { label: 'Oficial', inicial: 1300, devaluacionPct: Array(12).fill(0.02) },
+    blue:    { label: 'Blue',    inicial: 1360, devaluacionPct: Array(12).fill(0.02) },
+    mep:     { label: 'MEP',     inicial: 1330, devaluacionPct: Array(12).fill(0.02) },
+    ccl:     { label: 'CCL',     inicial: 1345, devaluacionPct: Array(12).fill(0.02) },
   },
 };
 

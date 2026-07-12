@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TopBar, Page, Card, Field, Button, Modal, inputStyle, Spinner, Badge } from '../components/ui.jsx';
-import { SENIORITIES, CECOS, COLORS, CONCEPTO_TIPOS, CONCEPTO_ALCANCES } from '../data/seed.js';
+import { SENIORITIES, CECOS, COLORS, CONCEPTO_TIPOS, CONCEPTO_ALCANCES, MESES, PARAMETRO_CATALOGO } from '../data/seed.js';
 import { fmtARS, fmtPct } from '../lib/payrollEngine.js';
 import { proponerCambiosParametros } from '../lib/aiClient.js';
 
@@ -11,18 +11,6 @@ const TABS = [
   { key: 'conceptos', label: 'Conceptos' },
   { key: 'copiloto', label: '✦ Copiloto IA' },
 ];
-
-const PARAM_LABELS = {
-  contribucionesPatronalesPct: 'Contribuciones patronales (%)',
-  alimentacion: 'Asignación Alimentación (ARS)',
-  conectividad: 'Asignación Conectividad (ARS)',
-  seguroSalud: 'Seguro de Salud (ARS)',
-  plusVacacionalPct: 'Plus vacacional (%)',
-  ajustePerformancePct: 'Ajuste performance (%)',
-  provisionIndemnizacionPct: 'Provisión indemnización (%)',
-  topeHorasExtra: 'Tope horas extra',
-  seguroManagerUSD: 'Seguro Manager & Up (USD)',
-};
 
 export default function Parametros({
   parametros, macro, bonos, conceptosCustom, setParametros, setMacro, setBonos,
@@ -67,23 +55,46 @@ export default function Parametros({
   );
 }
 
+function MonthlyRatesRow({ label, hint, values, onChange }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{label}</div>
+      {hint && <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 8 }}>{hint}</div>}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        {MESES.map((m, i) => (
+          <div key={m} style={{ flex: '0 0 60px' }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, textAlign: 'center', marginBottom: 4 }}>{m}</div>
+            <input
+              type="number" step="0.001"
+              disabled={i === 0}
+              value={i === 0 ? '' : values[i]}
+              placeholder={i === 0 ? 'base' : undefined}
+              onChange={(e) => onChange(i, Number(e.target.value))}
+              style={{ ...inputStyle, width: 60, padding: '8px 4px', textAlign: 'center', opacity: i === 0 ? 0.4 : 1 }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MacroTab({ macro, setMacro }) {
   const set = (key, value) => setMacro((m) => ({ ...m, [key]: value }));
   const setTC = (key, field, value) => setMacro((m) => ({
     ...m, tiposCambio: { ...m.tiposCambio, [key]: { ...m.tiposCambio[key], [field]: value } },
   }));
+  const setMonthly = (key, i, value) => setMacro((m) => {
+    const next = [...m[key]]; next[i] = value; return { ...m, [key]: next };
+  });
+  const setTCMonthly = (key, i, value) => setMacro((m) => {
+    const arr = [...m.tiposCambio[key].devaluacionPct]; arr[i] = value;
+    return { ...m, tiposCambio: { ...m.tiposCambio, [key]: { ...m.tiposCambio[key], devaluacionPct: arr } } };
+  });
 
   return (
     <Card>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-        <Field label="IPC mensual (%)" hint="Inflación mensual supuesta">
-          <input type="number" step="0.001" style={inputStyle} value={macro.ipcMensualPct}
-            onChange={(e) => set('ipcMensualPct', Number(e.target.value))} />
-        </Field>
-        <Field label="Ajuste salarial mensual (%)">
-          <input type="number" step="0.001" style={inputStyle} value={macro.ajusteSalarialPct}
-            onChange={(e) => set('ajusteSalarialPct', Number(e.target.value))} />
-        </Field>
         <Field label="Tipo de cambio activo" hint="Define toda la conversión ARS → USD del modelo">
           <select style={inputStyle} value={macro.tcActivo} onChange={(e) => set('tcActivo', e.target.value)}>
             {Object.entries(macro.tiposCambio).map(([key, tc]) => <option key={key} value={key}>{tc.label}</option>)}
@@ -91,17 +102,34 @@ function MacroTab({ macro, setMacro }) {
         </Field>
       </div>
 
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Tipos de cambio (ARS por USD)</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <MonthlyRatesRow
+        label="IPC mensual (%)"
+        hint="Inflación asumida mes a mes — no tiene por qué ser uniforme. Ene es el mes base de la serie."
+        values={macro.ipcMensualPct}
+        onChange={(i, v) => setMonthly('ipcMensualPct', i, v)}
+      />
+      <MonthlyRatesRow
+        label="Ajuste salarial mensual (%)"
+        hint="Ajuste de sueldos asumido mes a mes."
+        values={macro.ajusteSalarialPct}
+        onChange={(i, v) => setMonthly('ajusteSalarialPct', i, v)}
+      />
+
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '8px 0 16px' }}>Tipos de cambio (ARS por USD)</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
         {Object.entries(macro.tiposCambio).map(([key, tc]) => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 90, fontWeight: 700, fontSize: 13 }}>{tc.label}</div>
-            <input type="number" style={{ ...inputStyle, width: 130 }} value={tc.inicial}
-              onChange={(e) => setTC(key, 'inicial', Number(e.target.value))} />
-            <span style={{ fontSize: 12, color: COLORS.muted }}>valor inicial (Ene)</span>
-            <input type="number" step="0.001" style={{ ...inputStyle, width: 100 }} value={tc.devaluacionPct}
-              onChange={(e) => setTC(key, 'devaluacionPct', Number(e.target.value))} />
-            <span style={{ fontSize: 12, color: COLORS.muted }}>devaluación mensual</span>
+          <div key={key}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <div style={{ width: 90, fontWeight: 700, fontSize: 13 }}>{tc.label}</div>
+              <input type="number" style={{ ...inputStyle, width: 130 }} value={tc.inicial}
+                onChange={(e) => setTC(key, 'inicial', Number(e.target.value))} />
+              <span style={{ fontSize: 12, color: COLORS.muted }}>valor inicial (Ene)</span>
+            </div>
+            <MonthlyRatesRow
+              label="Devaluación mensual (%)"
+              values={tc.devaluacionPct}
+              onChange={(i, v) => setTCMonthly(key, i, v)}
+            />
           </div>
         ))}
       </div>
@@ -110,17 +138,49 @@ function MacroTab({ macro, setMacro }) {
 }
 
 function CosteoTab({ parametros, setParametros }) {
-  const set = (key, value) => setParametros((p) => ({ ...p, [key]: value }));
+  const set = (key, value) => setParametros((prev) => prev.map((p) => (p.key === key ? { ...p, valor: value } : p)));
+  const eliminar = (key) => setParametros((prev) => prev.filter((p) => p.key !== key));
+  const restaurar = (key) => {
+    const item = PARAMETRO_CATALOGO.find((p) => p.key === key);
+    if (item) setParametros((prev) => [...prev, { ...item }]);
+  };
+  const faltantes = PARAMETRO_CATALOGO.filter((c) => !parametros.some((p) => p.key === c.key));
+
   return (
     <Card>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {Object.entries(PARAM_LABELS).map(([key, label]) => (
-          <Field key={key} label={label}>
-            <input type="number" step="0.001" style={inputStyle} value={parametros[key]}
-              onChange={(e) => set(key, Number(e.target.value))} />
-          </Field>
-        ))}
+      <div style={{ fontSize: 12.5, color: COLORS.muted, marginBottom: 16 }}>
+        Estos parámetros alimentan fórmulas puntuales del motor (aguinaldo, vacaciones, cargas sociales). Si tu empresa
+        no aplica alguno, eliminalo — el motor lo trata como si valiera 0. Para costos nuevos que no están acá, usá la
+        pestaña "Conceptos".
       </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {parametros.map((p) => (
+          <div key={p.key} style={{
+            display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '10px 14px',
+            border: `1px solid ${COLORS.border}`, borderRadius: 12,
+          }}>
+            <div style={{ flex: '1 1 220px', fontWeight: 700, fontSize: 13.5 }}>{p.label}</div>
+            <input type="number" step="0.001" style={{ ...inputStyle, width: 160 }} value={p.valor}
+              onChange={(e) => set(p.key, Number(e.target.value))} />
+            <Button variant="danger" onClick={() => eliminar(p.key)}>Eliminar</Button>
+          </div>
+        ))}
+        {parametros.length === 0 && (
+          <div style={{ fontSize: 13, color: COLORS.muted, padding: '12px 0' }}>Eliminaste todos los parámetros estructurales — ninguno se está aplicando al presupuesto.</div>
+        )}
+      </div>
+
+      {faltantes.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 12.5, color: COLORS.muted, marginBottom: 10 }}>Eliminados (no se aplican al presupuesto):</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {faltantes.map((f) => (
+              <Button key={f.key} variant="secondary" onClick={() => restaurar(f.key)}>+ Restaurar "{f.label}"</Button>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -314,7 +374,7 @@ function CopilotoTab({ parametros, bonos, setParametros, setBonos }) {
         const seniority = c.path.replace('bonos.', '');
         setBonos((b) => ({ ...b, [seniority]: c.valorNuevo }));
       } else {
-        setParametros((p) => ({ ...p, [c.path]: c.valorNuevo }));
+        setParametros((prev) => prev.map((p) => (p.key === c.path ? { ...p, valor: c.valorNuevo } : p)));
       }
     });
     setAplicado(true);
