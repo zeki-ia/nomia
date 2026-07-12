@@ -4,7 +4,7 @@ import { Sidebar, Spinner } from './components/ui.jsx';
 import { COLORS } from './data/seed.js';
 import { computePresupuesto } from './lib/payrollEngine.js';
 import { supabase } from './lib/supabaseClient.js';
-import { empleadoFromDb, empleadoToDb, conceptoFromDb, escenarioFromDb } from './lib/supabaseMappers.js';
+import { empleadoFromDb, empleadoToDb, nextCodigo, conceptoFromDb, escenarioFromDb } from './lib/supabaseMappers.js';
 
 import Dashboard from './screens/Dashboard.jsx';
 import Empleados from './screens/Empleados.jsx';
@@ -126,8 +126,9 @@ export default function App() {
       if (err) return console.error(err);
       setEmpleados((prev) => prev.map((e) => (e.id === data.id ? empleadoFromDb(row) : e)));
     } else {
+      const conCodigo = { ...data, codigo: data.codigo?.trim() || nextCodigo(empleados) };
       const { data: row, error: err } = await supabase.from('nomia_empleados')
-        .insert(empleadoToDb(data)).select().single();
+        .insert(empleadoToDb(conCodigo)).select().single();
       if (err) return console.error(err);
       setEmpleados((prev) => [...prev, empleadoFromDb(row)]);
     }
@@ -164,7 +165,8 @@ export default function App() {
   };
 
   const importarEmpleados = async (rows) => {
-    const { data: inserted, error: err } = await supabase.from('nomia_empleados').insert(rows.map(empleadoToDb)).select();
+    const conCodigos = rows.map((r, i) => ({ ...r, codigo: r.codigo?.trim() || nextCodigo(empleados, i) }));
+    const { data: inserted, error: err } = await supabase.from('nomia_empleados').insert(conCodigos.map(empleadoToDb)).select();
     if (err) return console.error(err);
     setEmpleados((prev) => [...prev, ...inserted.map(empleadoFromDb)]);
   };
@@ -220,7 +222,7 @@ export default function App() {
           <Route path="/empleados" element={
             <EmpleadosRoute empleados={empleados} onBulkUpdate={bulkUpdateEmpleados} onBulkDelete={bulkDeleteEmpleados} />
           } />
-          <Route path="/empleados/nuevo" element={<EmpleadoNuevoRoute onSave={upsertEmpleado} />} />
+          <Route path="/empleados/nuevo" element={<EmpleadoNuevoRoute empleados={empleados} onSave={upsertEmpleado} />} />
           <Route path="/empleados/importar" element={<ImportarEmpleadosRoute onImport={importarEmpleados} />} />
           <Route path="/empleados/:id" element={<EmpleadoDetailRoute empleados={empleados} onSave={upsertEmpleado} onDelete={deleteEmpleado} />} />
           <Route path="/parametros" element={
@@ -264,10 +266,11 @@ function ImportarEmpleadosRoute({ onImport }) {
   );
 }
 
-function EmpleadoNuevoRoute({ onSave }) {
+function EmpleadoNuevoRoute({ empleados, onSave }) {
   const navigate = useNavigate();
   return (
     <EmpleadoDetail
+      empleados={empleados}
       onSave={onSave}
       onBack={() => navigate('/empleados')}
       isNew

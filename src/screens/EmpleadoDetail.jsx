@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { TopBar, Page, Card, Field, Button, inputStyle } from '../components/ui.jsx';
 import { SENIORITIES, CECOS, MESES, COLORS } from '../data/seed.js';
+import { nextCodigo } from '../lib/supabaseMappers.js';
 
 const BLANK = {
-  nombre: '', cargo: '', seniority: 'Standard', centroCosto: CECOS[0].code,
+  codigo: '', legajo: '', nombre: '', cargo: '', seniority: 'Standard', centroCosto: CECOS[0].code,
   fechaIngreso: '2026-01-01', sueldoBase: 1000000,
   comisionPct: 0, bonoCustomerPct: 0, horasExtraN: 0,
   mesesActivo: Array(12).fill(1),
 };
 
-export default function EmpleadoDetail({ empleado, onSave, onDelete, onBack, isNew }) {
-  const [form, setForm] = useState(() => (empleado ? { ...empleado } : { ...BLANK }));
+export default function EmpleadoDetail({ empleado, empleados = [], onSave, onDelete, onBack, isNew }) {
+  const [form, setForm] = useState(() => (empleado ? { ...empleado } : { ...BLANK, codigo: nextCodigo(empleados) }));
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const toggleMes = (i) => setForm((f) => {
@@ -18,6 +19,8 @@ export default function EmpleadoDetail({ empleado, onSave, onDelete, onBack, isN
     meses[i] = meses[i] ? 0 : 1;
     return { ...f, mesesActivo: meses };
   });
+
+  const puedeGuardar = form.nombre.trim() && form.codigo.trim();
 
   const guardar = () => {
     onSave({ ...form, id: empleado?.id });
@@ -32,12 +35,18 @@ export default function EmpleadoDetail({ empleado, onSave, onDelete, onBack, isN
         actions={<>
           <Button variant="secondary" onClick={onBack}>← Volver</Button>
           {!isNew && <Button variant="danger" onClick={() => onDelete(empleado.id)}>Eliminar</Button>}
-          <Button onClick={guardar}>Guardar</Button>
+          <Button onClick={guardar} disabled={!puedeGuardar}>Guardar</Button>
         </>}
       />
       <Page>
         <Card>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Field label="Código" hint="Código de posición en el presupuesto">
+              <input style={inputStyle} value={form.codigo} onChange={(e) => set('codigo', e.target.value)} />
+            </Field>
+            <Field label="N° de legajo">
+              <input style={inputStyle} value={form.legajo || ''} onChange={(e) => set('legajo', e.target.value)} />
+            </Field>
             <Field label="Nombre y apellido">
               <input style={inputStyle} value={form.nombre} onChange={(e) => set('nombre', e.target.value)} />
             </Field>

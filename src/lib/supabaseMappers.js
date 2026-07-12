@@ -1,11 +1,11 @@
 // Traduce entre las filas de Supabase (snake_case, numeric-as-string) y el shape
-// camelCase que ya usa toda la UI. `codigo` no se persiste: se deriva del id.
-const codigoFor = (id) => `C-${String(id).padStart(3, '0')}`;
+// camelCase que ya usa toda la UI.
 
 export function empleadoFromDb(row) {
   return {
     id: row.id,
-    codigo: codigoFor(row.id),
+    codigo: row.codigo,
+    legajo: row.legajo || '',
     nombre: row.nombre,
     cargo: row.cargo,
     seniority: row.seniority,
@@ -21,6 +21,8 @@ export function empleadoFromDb(row) {
 
 export function empleadoToDb(data) {
   return {
+    codigo: data.codigo,
+    legajo: data.legajo || null,
     nombre: data.nombre,
     cargo: data.cargo,
     seniority: data.seniority,
@@ -32,6 +34,16 @@ export function empleadoToDb(data) {
     horas_extra_n: data.horasExtraN || 0,
     meses_activo: data.mesesActivo,
   };
+}
+
+// Sugiere el próximo código secuencial (C-019, C-020, ...) en base a los existentes.
+// `offset` permite generar varios códigos distintos para un mismo lote (ej. import masivo).
+export function nextCodigo(empleadosExistentes, offset = 0) {
+  const max = empleadosExistentes.reduce((m, e) => {
+    const n = parseInt(String(e.codigo || '').replace(/\D/g, ''), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return `C-${String(max + 1 + offset).padStart(3, '0')}`;
 }
 
 export function conceptoFromDb(row) {
