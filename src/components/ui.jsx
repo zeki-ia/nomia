@@ -6,10 +6,12 @@ const NAV_ITEMS = [
   { to: '/empleados', label: 'Dotación', icon: '☰' },
   { to: '/parametros', label: 'Parámetros', icon: '⚙' },
   { to: '/escenarios', label: 'Escenarios', icon: '⌥' },
+  { to: '/real-vs-presupuesto', label: 'Real vs. Presupuesto', icon: '⇄' },
   { to: '/reportes', label: 'Reportes', icon: '▤' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, onLogout }) {
+  const esAdmin = perfil?.rol === 'admin';
   return (
     <div style={{
       width: 236, flexShrink: 0, background: COLORS.surface, borderRight: `1px solid ${COLORS.border}`,
@@ -28,6 +30,22 @@ export function Sidebar() {
           </div>
         </div>
       </div>
+
+      {esAdmin && clientes && (
+        <div style={{ padding: '0 20px 12px' }}>
+          <select
+            value={clienteActivoId || ''}
+            onChange={(e) => onCambiarCliente(Number(e.target.value))}
+            style={{
+              width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${COLORS.borderStrong}`,
+              fontSize: 12.5, fontWeight: 600, color: COLORS.navy, background: COLORS.bg,
+            }}
+          >
+            {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+      )}
+
       <nav style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
         {NAV_ITEMS.map((item) => (
           <NavLink
@@ -44,9 +62,34 @@ export function Sidebar() {
             {item.label}
           </NavLink>
         ))}
+        {esAdmin && (
+          <NavLink
+            to="/admin"
+            style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
+              fontSize: 14, fontWeight: 600, marginTop: 10, borderTop: `1px solid ${COLORS.border}`, paddingTop: 20,
+              color: isActive ? COLORS.primary : COLORS.muted,
+              background: isActive ? COLORS.primarySoft : 'transparent',
+            })}
+          >
+            <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>◆</span>
+            Administración
+          </NavLink>
+        )}
       </nav>
-      <div style={{ padding: 16, fontSize: 11, color: COLORS.mutedSoft, borderTop: `1px solid ${COLORS.border}` }}>
-        Presupuesto 2026 · Argentina
+
+      <div style={{ padding: 16, borderTop: `1px solid ${COLORS.border}` }}>
+        {perfil && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: COLORS.navy, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {perfil.nombre || perfil.email}
+            </div>
+            <button onClick={onLogout} style={{ background: 'none', border: 'none', fontSize: 11.5, color: COLORS.muted, fontWeight: 700, cursor: 'pointer' }}>
+              Salir
+            </button>
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: COLORS.mutedSoft }}>Presupuesto 2026 · Argentina</div>
       </div>
     </div>
   );

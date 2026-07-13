@@ -188,6 +188,30 @@ function groupBy(porEmpleado, keyFn, totalAnualARS) {
     .sort((a, b) => b.costoARS - a.costoARS);
 }
 
+// Compara el presupuesto calculado contra el costo real cargado mes a mes.
+// `costosReales` son filas { anio, mes (1-12), centroCosto, monto } de nomia_costos_reales;
+// se usa únicamente el total del mes (centroCosto null) — los desgloses por CeCo son informativos.
+export function calcularDesvios(costoMensualARS, costosReales, year = 2026) {
+  const realPorMes = Array(12).fill(null);
+  for (const c of costosReales) {
+    if (c.anio === year && c.centroCosto === 'TOTAL') realPorMes[c.mes - 1] = c.monto;
+  }
+  const filas = MESES.map((mesLabel, i) => {
+    const presupuesto = costoMensualARS[i];
+    const real = realPorMes[i];
+    const tieneReal = real !== null;
+    const desvioARS = tieneReal ? real - presupuesto : null;
+    const desvioPct = tieneReal && presupuesto ? desvioARS / presupuesto : null;
+    return { mes: mesLabel, mesIndex: i, presupuesto, real, tieneReal, desvioARS, desvioPct };
+  });
+  const cargados = filas.filter((f) => f.tieneReal);
+  const totalPresupuestoCargado = cargados.reduce((s, f) => s + f.presupuesto, 0);
+  const totalRealCargado = cargados.reduce((s, f) => s + f.real, 0);
+  const desvioAcumuladoARS = cargados.length ? totalRealCargado - totalPresupuestoCargado : null;
+  const desvioAcumuladoPct = cargados.length && totalPresupuestoCargado ? desvioAcumuladoARS / totalPresupuestoCargado : null;
+  return { filas, mesesCargados: cargados.length, totalPresupuestoCargado, totalRealCargado, desvioAcumuladoARS, desvioAcumuladoPct };
+}
+
 export const fmtARS = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
 export const fmtUSD = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n || 0);
 export const fmtPct = (n) => new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 }).format(n || 0);

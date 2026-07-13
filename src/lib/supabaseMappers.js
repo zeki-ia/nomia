@@ -69,3 +69,36 @@ export function escenarioFromDb(row) {
     conceptosCustom: row.conceptos_custom || [],
   };
 }
+
+export function clienteFromDb(row) {
+  return { id: row.id, nombre: row.nombre, createdAt: row.created_at };
+}
+
+export function perfilFromDb(row) {
+  return { id: row.id, email: row.email, nombre: row.nombre, rol: row.rol, clienteId: row.cliente_id };
+}
+
+export function costoRealFromDb(row) {
+  return {
+    id: row.id,
+    clienteId: row.cliente_id,
+    anio: row.anio,
+    mes: row.mes,
+    centroCosto: row.centro_costo,
+    monto: Number(row.monto),
+    nota: row.nota,
+    fuente: row.fuente,
+  };
+}
+
+export function costoRealToDb(data, clienteId) {
+  return {
+    cliente_id: clienteId,
+    anio: data.anio,
+    mes: data.mes,
+    centro_costo: data.centroCosto || 'TOTAL',
+    monto: data.monto,
+    nota: data.nota || null,
+    fuente: data.fuente || 'manual',
+  };
+}

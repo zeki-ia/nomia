@@ -1,10 +1,11 @@
-import { TopBar, Page, Card, Button, KpiCard } from '../components/ui.jsx';
+import { TopBar, Page, Card, Button, KpiCard, Badge } from '../components/ui.jsx';
 import { COLORS, MESES } from '../data/seed.js';
-import { computePresupuesto, fmtARS, fmtUSD, fmtNum, fmtPct } from '../lib/payrollEngine.js';
+import { computePresupuesto, fmtARS, fmtUSD, fmtNum, fmtPct, calcularDesvios } from '../lib/payrollEngine.js';
 
-export default function EscenarioDetail({ escenario, presupuestoActual, onBack }) {
+export default function EscenarioDetail({ escenario, presupuestoActual, costosReales = [], onBack }) {
   const p = computePresupuesto(escenario.empleados, escenario.parametros, escenario.macro, escenario.bonos, escenario.conceptosCustom || []);
   const delta = presupuestoActual.totalAnualARS ? (p.totalAnualARS - presupuestoActual.totalAnualARS) / presupuestoActual.totalAnualARS : 0;
+  const desvios = calcularDesvios(p.costoMensualARS, costosReales);
 
   return (
     <>
@@ -44,6 +45,14 @@ export default function EscenarioDetail({ escenario, presupuestoActual, onBack }
                   <td style={td}>Actual</td>
                   {presupuestoActual.costoMensualARS.map((v, i) => <td key={i} style={{ ...td, textAlign: 'right', color: COLORS.muted }}>{fmtARS(v)}</td>)}
                 </tr>
+                {desvios.mesesCargados > 0 && (
+                  <tr>
+                    <td style={td}>Real cargado</td>
+                    {desvios.filas.map((f, i) => (
+                      <td key={i} style={{ ...td, textAlign: 'right', color: COLORS.warning }}>{f.tieneReal ? fmtARS(f.real) : '—'}</td>
+                    ))}
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -54,6 +63,20 @@ export default function EscenarioDetail({ escenario, presupuestoActual, onBack }
             <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Costo total en USD</h3>
             <div style={{ fontFamily: 'Sora', fontSize: 22, fontWeight: 700, marginTop: 8 }}>{fmtUSD(p.totalAnualUSD)}</div>
           </Card>
+          {desvios.mesesCargados > 0 && (
+            <Card style={{ flex: 1, minWidth: 280 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Desvío real vs. este escenario</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <span style={{ fontFamily: 'Sora', fontSize: 22, fontWeight: 700 }}>
+                  {desvios.desvioAcumuladoARS > 0 ? '+' : ''}{fmtARS(desvios.desvioAcumuladoARS)}
+                </span>
+                <Badge tone={desvios.desvioAcumuladoARS > 0 ? 'warning' : 'green'}>
+                  {desvios.desvioAcumuladoPct > 0 ? '+' : ''}{fmtPct(desvios.desvioAcumuladoPct)}
+                </Badge>
+              </div>
+              <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 6 }}>Sobre {desvios.mesesCargados} mes{desvios.mesesCargados === 1 ? '' : 'es'} cargado{desvios.mesesCargados === 1 ? '' : 's'}</div>
+            </Card>
+          )}
         </div>
       </Page>
     </>

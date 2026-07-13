@@ -1,14 +1,18 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { TopBar, Page, KpiCard, Card, Button, Spinner } from '../components/ui.jsx';
 import { COLORS, MESES } from '../data/seed.js';
-import { fmtARS, fmtUSD, fmtNum, fmtPct } from '../lib/payrollEngine.js';
+import { fmtARS, fmtUSD, fmtNum, fmtPct, calcularDesvios } from '../lib/payrollEngine.js';
 import { generarResumenEjecutivo } from '../lib/aiClient.js';
 
-export default function Dashboard({ presupuesto }) {
+export default function Dashboard({ presupuesto, costosReales }) {
+  const navigate = useNavigate();
   const [resumen, setResumen] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const desvios = calcularDesvios(presupuesto.costoMensualARS, costosReales);
 
   const chartData = MESES.map((mes, i) => ({
     mes,
@@ -80,6 +84,29 @@ export default function Dashboard({ presupuesto }) {
             <BreakdownList rows={presupuesto.porSeniority} />
           </Card>
         </div>
+
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/real-vs-presupuesto')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700 }}>Real vs. Presupuesto</h3>
+            <span style={{ fontSize: 12.5, color: COLORS.primary, fontWeight: 700 }}>Ver detalle →</span>
+          </div>
+          {desvios.mesesCargados === 0 ? (
+            <div style={{ fontSize: 13, color: COLORS.muted }}>Todavía no cargaste costo real de ningún mes.</div>
+          ) : (
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 12, color: COLORS.muted }}>Meses cargados</div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{desvios.mesesCargados} / 12</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: COLORS.muted }}>Desvío acumulado</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: desvios.desvioAcumuladoARS > 0 ? COLORS.warning : COLORS.green }}>
+                  {desvios.desvioAcumuladoARS > 0 ? '+' : ''}{fmtPct(desvios.desvioAcumuladoPct)}
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
       </Page>
     </>
   );

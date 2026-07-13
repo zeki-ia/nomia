@@ -1,11 +1,17 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Sidebar, Spinner } from './components/ui.jsx';
-import { COLORS } from './data/seed.js';
+import { Sidebar, Spinner, Button } from './components/ui.jsx';
+import { COLORS, DEFAULT_PARAMETROS, DEFAULT_MACRO, DEFAULT_BONOS } from './data/seed.js';
 import { computePresupuesto } from './lib/payrollEngine.js';
 import { supabase } from './lib/supabaseClient.js';
-import { empleadoFromDb, empleadoToDb, nextCodigo, conceptoFromDb, escenarioFromDb } from './lib/supabaseMappers.js';
+import {
+  empleadoFromDb, empleadoToDb, nextCodigo, conceptoFromDb, escenarioFromDb,
+  clienteFromDb, perfilFromDb, costoRealFromDb, costoRealToDb,
+} from './lib/supabaseMappers.js';
+import { invitarUsuario, eliminarUsuario } from './lib/adminClient.js';
 
+import Login from './screens/Login.jsx';
+import CompletarRegistro from './screens/CompletarRegistro.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Empleados from './screens/Empleados.jsx';
 import EmpleadoDetail from './screens/EmpleadoDetail.jsx';
@@ -14,8 +20,72 @@ import Escenarios from './screens/Escenarios.jsx';
 import EscenarioDetail from './screens/EscenarioDetail.jsx';
 import Reportes from './screens/Reportes.jsx';
 import ImportarEmpleados from './screens/ImportarEmpleados.jsx';
+import RealVsPresupuesto from './screens/RealVsPresupuesto.jsx';
+import Admin from './screens/admin/Admin.jsx';
+
+function FullScreen({ children }) {
+  return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: COLORS.bg }}>{children}</div>;
+}
 
 export default function App() {
+  const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
+  const [perfil, setPerfil] = useState(null);
+  const [perfilLoading, setPerfilLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) { setPerfil(null); setPerfilLoading(false); return; }
+    setPerfilLoading(true);
+    supabase.from('nomia_perfiles').select('*').eq('id', session.user.id).single().then(({ data }) => {
+      setPerfil(data ? perfilFromDb(data) : null);
+      setPerfilLoading(false);
+    });
+  }, [session?.user?.id]);
+
+  const logout = () => supabase.auth.signOut();
+
+  if (session === undefined || (session && perfilLoading)) {
+    return <FullScreen><Spinner label="Cargando…" /></FullScreen>;
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/completar-registro" element={<CompletarRegistro />} />
+      <Route path="/*" element={
+        !session ? <Navigate to="/login" replace />
+        : !perfil || (perfil.rol === 'cliente' && !perfil.clienteId) ? <SinAcceso perfil={perfil} onLogout={logout} />
+        : <AppAutenticada perfil={perfil} onLogout={logout} />
+      } />
+    </Routes>
+  );
+}
+
+function SinAcceso({ perfil, onLogout }) {
+  return (
+    <FullScreen>
+      <div style={{ textAlign: 'center', maxWidth: 380, padding: 24 }}>
+        <div style={{ fontWeight: 700, fontSize: 17, color: COLORS.navy, marginBottom: 8 }}>Todavía no tenés acceso</div>
+        <div style={{ color: COLORS.muted, fontSize: 13.5, marginBottom: 20 }}>
+          Tu cuenta ({perfil?.email}) está creada pero ningún cliente te asignó acceso todavía. Pedile a tu administrador que te invite desde Nomia.
+        </div>
+        <Button variant="secondary" onClick={onLogout}>Cerrar sesión</Button>
+      </div>
+    </FullScreen>
+  );
+}
+
+function AppAutenticada({ perfil, onLogout }) {
+  const esAdmin = perfil.rol === 'admin';
+  const [clientes, setClientes] = useState([]);
+  const [perfiles, setPerfiles] = useState([]);
+  const [clienteActivoId, setClienteActivoId] = useState(esAdmin ? null : perfil.clienteId);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [empleados, setEmpleados] = useState([]);
@@ -24,39 +94,62 @@ export default function App() {
   const [bonos, setBonos] = useState(null);
   const [conceptosCustom, setConceptosCustom] = useState([]);
   const [escenarios, setEscenarios] = useState([]);
+  const [costosReales, setCostosReales] = useState([]);
 
+  // Clientes + perfiles: siempre se cargan (RLS ya limita a "los propios" si no sos admin).
   useEffect(() => {
     (async () => {
-      const [empRes, confRes, concRes, escRes] = await Promise.all([
-        supabase.from('nomia_empleados').select('*').order('id'),
-        supabase.from('nomia_configuracion').select('*').eq('id', 1).single(),
-        supabase.from('nomia_conceptos_custom').select('*').order('id'),
-        supabase.from('nomia_escenarios').select('*').order('fecha', { ascending: false }),
+      const [clRes, pfRes] = await Promise.all([
+        supabase.from('nomia_clientes').select('*').order('nombre'),
+        supabase.from('nomia_perfiles').select('*').order('email'),
       ]);
-      const firstError = empRes.error || confRes.error || concRes.error || escRes.error;
+      const cls = (clRes.data || []).map(clienteFromDb);
+      setClientes(cls);
+      setPerfiles((pfRes.data || []).map(perfilFromDb));
+      if (esAdmin && !clienteActivoId && cls.length) setClienteActivoId(cls[0].id);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const refreshPerfiles = useCallback(async () => {
+    const { data } = await supabase.from('nomia_perfiles').select('*').order('email');
+    setPerfiles((data || []).map(perfilFromDb));
+  }, []);
+
+  // Datos del cliente activo — se recargan cada vez que un admin cambia de cliente.
+  useEffect(() => {
+    if (!clienteActivoId) return;
+    setLoading(true);
+    (async () => {
+      const [empRes, confRes, concRes, escRes, realRes] = await Promise.all([
+        supabase.from('nomia_empleados').select('*').eq('cliente_id', clienteActivoId).order('id'),
+        supabase.from('nomia_configuracion').select('*').eq('cliente_id', clienteActivoId).maybeSingle(),
+        supabase.from('nomia_conceptos_custom').select('*').eq('cliente_id', clienteActivoId).order('id'),
+        supabase.from('nomia_escenarios').select('*').eq('cliente_id', clienteActivoId).order('fecha', { ascending: false }),
+        supabase.from('nomia_costos_reales').select('*').eq('cliente_id', clienteActivoId).order('mes'),
+      ]);
+      const firstError = empRes.error || confRes.error || concRes.error || escRes.error || realRes.error;
       if (firstError) {
         setError(firstError.message || 'No se pudo conectar con Supabase.');
         setLoading(false);
         return;
       }
       setEmpleados(empRes.data.map(empleadoFromDb));
-      setParametros(confRes.data.parametros);
-      setMacro(confRes.data.macro);
-      setBonos(confRes.data.bonos);
+      setParametros(confRes.data ? confRes.data.parametros : DEFAULT_PARAMETROS);
+      setMacro(confRes.data ? confRes.data.macro : DEFAULT_MACRO);
+      setBonos(confRes.data ? confRes.data.bonos : DEFAULT_BONOS);
       setConceptosCustom(concRes.data.map(conceptoFromDb));
       setEscenarios(escRes.data.map(escenarioFromDb));
+      setCostosReales(realRes.data.map(costoRealFromDb));
       setLoading(false);
     })();
-  }, []);
+  }, [clienteActivoId]);
 
   const presupuesto = useMemo(
     () => (parametros ? computePresupuesto(empleados, parametros, macro, bonos, conceptosCustom) : null),
     [empleados, parametros, macro, bonos, conceptosCustom]
   );
 
-  // Cambios seguidos (ej: tipeando varios meses de IPC, o tipo+valor de un bono) se
-  // acumulan y mandan en un solo request — dos updates casi simultáneos pueden resolver
-  // en cualquier orden y el más nuevo terminaría pisado por el más viejo.
   const pendingPatchRef = useRef({});
   const flushTimeoutRef = useRef(null);
   const persistConfiguracion = useCallback((patch) => {
@@ -65,9 +158,9 @@ export default function App() {
     flushTimeoutRef.current = setTimeout(async () => {
       const toSend = pendingPatchRef.current;
       pendingPatchRef.current = {};
-      await supabase.from('nomia_configuracion').update({ ...toSend, updated_at: new Date().toISOString() }).eq('id', 1);
+      await supabase.from('nomia_configuracion').update({ ...toSend, updated_at: new Date().toISOString() }).eq('cliente_id', clienteActivoId);
     }, 400);
-  }, []);
+  }, [clienteActivoId]);
 
   const updateParametros = useCallback((updater) => {
     setParametros((prev) => {
@@ -96,6 +189,7 @@ export default function App() {
   const crearConcepto = async (data) => {
     const { data: row, error: err } = await supabase.from('nomia_conceptos_custom').insert({
       nombre: data.nombre, tipo: data.tipo, valor: data.valor, alcance: data.alcance, activo: data.activo,
+      cliente_id: clienteActivoId,
     }).select().single();
     if (err) return console.error(err);
     setConceptosCustom((prev) => [...prev, conceptoFromDb(row)]);
@@ -128,7 +222,7 @@ export default function App() {
     } else {
       const conCodigo = { ...data, codigo: data.codigo?.trim() || nextCodigo(empleados) };
       const { data: row, error: err } = await supabase.from('nomia_empleados')
-        .insert(empleadoToDb(conCodigo)).select().single();
+        .insert({ ...empleadoToDb(conCodigo), cliente_id: clienteActivoId }).select().single();
       if (err) return console.error(err);
       setEmpleados((prev) => [...prev, empleadoFromDb(row)]);
     }
@@ -166,7 +260,8 @@ export default function App() {
 
   const importarEmpleados = async (rows) => {
     const conCodigos = rows.map((r, i) => ({ ...r, codigo: r.codigo?.trim() || nextCodigo(empleados, i) }));
-    const { data: inserted, error: err } = await supabase.from('nomia_empleados').insert(conCodigos.map(empleadoToDb)).select();
+    const { data: inserted, error: err } = await supabase.from('nomia_empleados')
+      .insert(conCodigos.map((r) => ({ ...empleadoToDb(r), cliente_id: clienteActivoId }))).select();
     if (err) return console.error(err);
     setEmpleados((prev) => [...prev, ...inserted.map(empleadoFromDb)]);
   };
@@ -180,6 +275,7 @@ export default function App() {
       macro: JSON.parse(JSON.stringify(macro)),
       bonos: { ...bonos },
       conceptos_custom: JSON.parse(JSON.stringify(conceptosCustom)),
+      cliente_id: clienteActivoId,
     };
     const { data: row, error: err } = await supabase.from('nomia_escenarios').insert(snapshot).select().single();
     if (err) return console.error(err);
@@ -194,31 +290,81 @@ export default function App() {
     setEscenarios((prev) => prev.filter((e) => e.id !== id));
   };
 
+  const crearCostoReal = async (data) => {
+    const { data: row, error: err } = await supabase.from('nomia_costos_reales')
+      .upsert(costoRealToDb(data, clienteActivoId), { onConflict: 'cliente_id,anio,mes,centro_costo' }).select().single();
+    if (err) return console.error(err);
+    setCostosReales((prev) => [...prev.filter((c) => !(c.anio === data.anio && c.mes === data.mes && c.centroCosto === 'TOTAL')), costoRealFromDb(row)]);
+  };
+
+  const importarCostosReales = async (rows) => {
+    const payload = rows.map((r) => costoRealToDb(r, clienteActivoId));
+    const { data: inserted, error: err } = await supabase.from('nomia_costos_reales')
+      .upsert(payload, { onConflict: 'cliente_id,anio,mes,centro_costo' }).select();
+    if (err) return console.error(err);
+    const nuevos = inserted.map(costoRealFromDb);
+    setCostosReales((prev) => {
+      const claves = new Set(nuevos.map((n) => `${n.anio}-${n.mes}-${n.centroCosto}`));
+      return [...prev.filter((c) => !claves.has(`${c.anio}-${c.mes}-${c.centroCosto}`)), ...nuevos];
+    });
+  };
+
+  const eliminarCostoReal = async (mes) => {
+    const entrada = costosReales.find((c) => c.mes === mes && c.centroCosto === 'TOTAL');
+    if (!entrada) return;
+    const { error: err } = await supabase.from('nomia_costos_reales').delete().eq('id', entrada.id);
+    if (err) return console.error(err);
+    setCostosReales((prev) => prev.filter((c) => c.id !== entrada.id));
+  };
+
+  const crearCliente = async (nombre) => {
+    const { data: cliente, error: err } = await supabase.from('nomia_clientes').insert({ nombre }).select().single();
+    if (err) return console.error(err);
+    await supabase.from('nomia_configuracion').insert({ cliente_id: cliente.id, parametros: DEFAULT_PARAMETROS, macro: DEFAULT_MACRO, bonos: DEFAULT_BONOS });
+    setClientes((prev) => [...prev, clienteFromDb(cliente)].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+  };
+
+  const onInvitarUsuario = async (data) => {
+    await invitarUsuario(data);
+    await refreshPerfiles();
+  };
+
+  const onEliminarUsuario = async (id) => {
+    await eliminarUsuario(id);
+    await refreshPerfiles();
+  };
+
+  const onActualizarPerfil = async (id, changes) => {
+    const { error: err } = await supabase.from('nomia_perfiles').update(changes).eq('id', id);
+    if (err) return console.error(err);
+    await refreshPerfiles();
+  };
+
   if (error) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: COLORS.bg, flexDirection: 'column', gap: 12, padding: 24, textAlign: 'center' }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: COLORS.danger }}>No se pudo conectar con la base de datos</div>
-        <div style={{ color: COLORS.muted, fontSize: 13.5, maxWidth: 420 }}>{error}</div>
-        <div style={{ color: COLORS.mutedSoft, fontSize: 12.5 }}>Verificá VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.</div>
-      </div>
+      <FullScreen>
+        <div style={{ textAlign: 'center', padding: 24, maxWidth: 420 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: COLORS.danger }}>No se pudo conectar con la base de datos</div>
+          <div style={{ color: COLORS.muted, fontSize: 13.5, marginTop: 8 }}>{error}</div>
+        </div>
+      </FullScreen>
     );
   }
 
-  if (loading || !parametros) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: COLORS.bg }}>
-        <Spinner label="Cargando presupuesto…" />
-      </div>
-    );
+  if (loading || !parametros || !clienteActivoId) {
+    return <FullScreen><Spinner label="Cargando presupuesto…" /></FullScreen>;
   }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar />
+      <Sidebar
+        perfil={perfil} clientes={esAdmin ? clientes : null} clienteActivoId={clienteActivoId}
+        onCambiarCliente={setClienteActivoId} onLogout={onLogout}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard presupuesto={presupuesto} />} />
+          <Route path="/dashboard" element={<Dashboard presupuesto={presupuesto} costosReales={costosReales} />} />
           <Route path="/empleados" element={
             <EmpleadosRoute empleados={empleados} onBulkUpdate={bulkUpdateEmpleados} onBulkDelete={bulkDeleteEmpleados} />
           } />
@@ -233,8 +379,20 @@ export default function App() {
             />
           } />
           <Route path="/escenarios" element={<EscenariosRoute escenarios={escenarios} onGuardar={guardarEscenario} onDelete={deleteEscenario} presupuesto={presupuesto} />} />
-          <Route path="/escenarios/:id" element={<EscenarioDetailRoute escenarios={escenarios} presupuestoActual={presupuesto} />} />
+          <Route path="/escenarios/:id" element={<EscenarioDetailRoute escenarios={escenarios} presupuestoActual={presupuesto} costosReales={costosReales} />} />
+          <Route path="/real-vs-presupuesto" element={
+            <RealVsPresupuesto presupuesto={presupuesto} costosReales={costosReales} onCrear={crearCostoReal} onEliminar={eliminarCostoReal} onImportar={importarCostosReales} />
+          } />
           <Route path="/reportes" element={<Reportes presupuesto={presupuesto} />} />
+          <Route path="/admin" element={
+            esAdmin ? (
+              <Admin
+                clientes={clientes} perfiles={perfiles} currentUserId={perfil.id}
+                onCrearCliente={crearCliente} onInvitarUsuario={onInvitarUsuario}
+                onActualizarPerfil={onActualizarPerfil} onEliminarUsuario={onEliminarUsuario}
+              />
+            ) : <Navigate to="/dashboard" replace />
+          } />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </div>
@@ -307,10 +465,10 @@ function EscenariosRoute({ escenarios, onGuardar, onDelete, presupuesto }) {
   );
 }
 
-function EscenarioDetailRoute({ escenarios, presupuestoActual }) {
+function EscenarioDetailRoute({ escenarios, presupuestoActual, costosReales }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const escenario = escenarios.find((e) => String(e.id) === id);
   if (!escenario) return <Navigate to="/escenarios" replace />;
-  return <EscenarioDetail escenario={escenario} presupuestoActual={presupuestoActual} onBack={() => navigate('/escenarios')} />;
+  return <EscenarioDetail escenario={escenario} presupuestoActual={presupuestoActual} costosReales={costosReales} onBack={() => navigate('/escenarios')} />;
 }
