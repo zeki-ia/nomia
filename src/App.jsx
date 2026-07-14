@@ -33,7 +33,15 @@ export default function App() {
   const [perfilLoading, setPerfilLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s));
+    // SSO desde Talenio Hub
+    const urlParams = new URLSearchParams(window.location.search)
+    const accessToken = urlParams.get('access_token')
+    const refreshToken = urlParams.get('refresh_token')
+    const init = accessToken && refreshToken
+      ? supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(() => { window.history.replaceState({}, '', window.location.pathname); return supabase.auth.getSession() })
+      : supabase.auth.getSession()
+    init.then(({ data: { session: s } }) => setSession(s))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
