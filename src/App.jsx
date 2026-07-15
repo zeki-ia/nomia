@@ -42,18 +42,17 @@ export default function App() {
   const [perfilLoading, setPerfilLoading] = useState(true);
 
   useEffect(() => {
-    // SSO desde Talenio Hub
-    const urlParams = new URLSearchParams(window.location.search)
-    const accessToken = urlParams.get('access_token')
-    const refreshToken = urlParams.get('refresh_token')
-    const init = accessToken && refreshToken
-      ? supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(() => { window.history.replaceState({}, '', window.location.pathname); return supabase.auth.getSession() })
-      : supabase.auth.getSession()
-    init.then(({ data: { session: s } }) => setSession(s ?? null))
+    // INITIAL_SESSION: Supabase lo dispara una vez al arrancar con la sesión ya resuelta
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      // Ignorar INITIAL_SESSION con null — puede ocurrir antes de que los SSO tokens se procesen
-      if (s || event === 'SIGNED_OUT') setSession(s)
+      if (event === 'INITIAL_SESSION') {
+        setSession(s ?? null)
+        if (!s) {
+          window.location.href = `https://hub.talenio.tech?redirect=${encodeURIComponent(window.location.origin)}`
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null)
+        window.location.href = 'https://hub.talenio.tech'
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
