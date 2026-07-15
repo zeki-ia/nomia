@@ -28,6 +28,14 @@ function FullScreen({ children }) {
   return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: COLORS.bg }}>{children}</div>;
 }
 
+function HubRedirect() {
+  useEffect(() => {
+    const redirectUrl = encodeURIComponent(window.location.origin)
+    window.location.href = `https://hub.talenio.tech?redirect=${redirectUrl}`
+  }, [])
+  return null
+}
+
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
   const [perfil, setPerfil] = useState(null);
@@ -64,7 +72,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <HubRedirect />} />
       <Route path="/completar-registro" element={<CompletarRegistro />} />
       <Route path="/*" element={
         !session ? <Navigate to="/login" replace />
