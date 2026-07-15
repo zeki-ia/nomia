@@ -64,8 +64,10 @@ export default function App() {
       if (data) {
         setPerfil(perfilFromDb(data));
       } else if (session.user.email?.endsWith('@delenio.net')) {
-        // Admin @delenio.net: acceso completo sin fila en nomia_perfiles
-        setPerfil({ id: session.user.id, email: session.user.email, nombre: session.user.email.split('@')[0], rol: 'admin', clienteId: null });
+        // Admin @delenio.net: crear fila real en nomia_perfiles para que RLS permita acceso a los datos
+        const adminPerfil = { id: session.user.id, email: session.user.email, nombre: session.user.email.split('@')[0], rol: 'admin', cliente_id: null };
+        await supabase.from('nomia_perfiles').upsert(adminPerfil, { onConflict: 'id' });
+        setPerfil({ id: session.user.id, email: session.user.email, nombre: adminPerfil.nombre, rol: 'admin', clienteId: null });
       } else {
         setPerfil(null);
       }
