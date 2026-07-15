@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { to: '/reportes', label: 'Reportes', icon: '▤' },
 ];
 
-export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, onLogout }) {
+export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, onVolverAClientes, onLogout }) {
   const esAdmin = perfil?.rol === 'admin';
   return (
     <div style={{
@@ -31,8 +31,8 @@ export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, o
         </div>
       </div>
 
-      {esAdmin && clientes && (
-        <div style={{ padding: '0 20px 12px' }}>
+      {esAdmin && clientes && clienteActivoId && (
+        <div style={{ padding: '0 20px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <select
             value={clienteActivoId || ''}
             onChange={(e) => onCambiarCliente(Number(e.target.value))}
@@ -43,11 +43,15 @@ export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, o
           >
             {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
+          <button
+            onClick={onVolverAClientes}
+            style={{ background: 'none', border: 'none', textAlign: 'left', fontSize: 11.5, color: COLORS.muted, fontWeight: 600, cursor: 'pointer', padding: '2px 2px' }}
+          >← Todos los clientes</button>
         </div>
       )}
 
       <nav style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-        {NAV_ITEMS.map((item) => (
+        {(!esAdmin || clienteActivoId) && NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

@@ -22,6 +22,7 @@ import Reportes from './screens/Reportes.jsx';
 import ImportarEmpleados from './screens/ImportarEmpleados.jsx';
 import RealVsPresupuesto from './screens/RealVsPresupuesto.jsx';
 import Admin from './screens/admin/Admin.jsx';
+import SeleccionarCliente from './screens/SeleccionarCliente.jsx';
 
 function FullScreen({ children }) {
   return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: COLORS.bg }}>{children}</div>;
@@ -111,10 +112,8 @@ function AppAutenticada({ perfil, onLogout }) {
         supabase.from('nomia_clientes').select('*').order('nombre'),
         supabase.from('nomia_perfiles').select('*').order('email'),
       ]);
-      const cls = (clRes.data || []).map(clienteFromDb);
-      setClientes(cls);
+      setClientes((clRes.data || []).map(clienteFromDb));
       setPerfiles((pfRes.data || []).map(perfilFromDb));
-      if (esAdmin && !clienteActivoId && cls.length) setClienteActivoId(cls[0].id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -359,39 +358,14 @@ function AppAutenticada({ perfil, onLogout }) {
     );
   }
 
-  if (loading || !parametros || !clienteActivoId) {
-    return <FullScreen><Spinner label="Cargando presupuesto…" /></FullScreen>;
-  }
-
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar
         perfil={perfil} clientes={esAdmin ? clientes : null} clienteActivoId={clienteActivoId}
-        onCambiarCliente={setClienteActivoId} onLogout={onLogout}
+        onCambiarCliente={setClienteActivoId} onVolverAClientes={() => setClienteActivoId(null)} onLogout={onLogout}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard presupuesto={presupuesto} costosReales={costosReales} />} />
-          <Route path="/empleados" element={
-            <EmpleadosRoute empleados={empleados} onBulkUpdate={bulkUpdateEmpleados} onBulkDelete={bulkDeleteEmpleados} />
-          } />
-          <Route path="/empleados/nuevo" element={<EmpleadoNuevoRoute empleados={empleados} onSave={upsertEmpleado} />} />
-          <Route path="/empleados/importar" element={<ImportarEmpleadosRoute onImport={importarEmpleados} />} />
-          <Route path="/empleados/:id" element={<EmpleadoDetailRoute empleados={empleados} onSave={upsertEmpleado} onDelete={deleteEmpleado} />} />
-          <Route path="/parametros" element={
-            <Parametros
-              parametros={parametros} macro={macro} bonos={bonos} conceptosCustom={conceptosCustom}
-              setParametros={updateParametros} setMacro={updateMacro} setBonos={updateBonos}
-              onCrearConcepto={crearConcepto} onActualizarConcepto={actualizarConcepto} onEliminarConcepto={eliminarConcepto}
-            />
-          } />
-          <Route path="/escenarios" element={<EscenariosRoute escenarios={escenarios} onGuardar={guardarEscenario} onDelete={deleteEscenario} presupuesto={presupuesto} />} />
-          <Route path="/escenarios/:id" element={<EscenarioDetailRoute escenarios={escenarios} presupuestoActual={presupuesto} costosReales={costosReales} />} />
-          <Route path="/real-vs-presupuesto" element={
-            <RealVsPresupuesto presupuesto={presupuesto} costosReales={costosReales} onCrear={crearCostoReal} onEliminar={eliminarCostoReal} onImportar={importarCostosReales} />
-          } />
-          <Route path="/reportes" element={<Reportes presupuesto={presupuesto} />} />
           <Route path="/admin" element={
             esAdmin ? (
               <Admin
@@ -401,10 +375,62 @@ function AppAutenticada({ perfil, onLogout }) {
               />
             ) : <Navigate to="/dashboard" replace />
           } />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/*" element={
+            !clienteActivoId ? (
+              <SeleccionarCliente clientes={clientes} perfiles={perfiles} onSeleccionar={setClienteActivoId} />
+            ) : (loading || !parametros) ? (
+              <FullScreen><Spinner label="Cargando presupuesto…" /></FullScreen>
+            ) : (
+              <ClienteWorkspace
+                presupuesto={presupuesto} costosReales={costosReales} empleados={empleados}
+                parametros={parametros} macro={macro} bonos={bonos} conceptosCustom={conceptosCustom}
+                escenarios={escenarios}
+                onBulkUpdate={bulkUpdateEmpleados} onBulkDelete={bulkDeleteEmpleados}
+                onSaveEmpleado={upsertEmpleado} onDeleteEmpleado={deleteEmpleado} onImportEmpleados={importarEmpleados}
+                updateParametros={updateParametros} updateMacro={updateMacro} updateBonos={updateBonos}
+                crearConcepto={crearConcepto} actualizarConcepto={actualizarConcepto} eliminarConcepto={eliminarConcepto}
+                guardarEscenario={guardarEscenario} deleteEscenario={deleteEscenario}
+                crearCostoReal={crearCostoReal} eliminarCostoReal={eliminarCostoReal} importarCostosReales={importarCostosReales}
+              />
+            )
+          } />
         </Routes>
       </div>
     </div>
+  );
+}
+
+function ClienteWorkspace({
+  presupuesto, costosReales, empleados, parametros, macro, bonos, conceptosCustom, escenarios,
+  onBulkUpdate, onBulkDelete, onSaveEmpleado, onDeleteEmpleado, onImportEmpleados,
+  updateParametros, updateMacro, updateBonos, crearConcepto, actualizarConcepto, eliminarConcepto,
+  guardarEscenario, deleteEscenario, crearCostoReal, eliminarCostoReal, importarCostosReales,
+}) {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="dashboard" replace />} />
+      <Route path="dashboard" element={<Dashboard presupuesto={presupuesto} costosReales={costosReales} />} />
+      <Route path="empleados" element={
+        <EmpleadosRoute empleados={empleados} onBulkUpdate={onBulkUpdate} onBulkDelete={onBulkDelete} />
+      } />
+      <Route path="empleados/nuevo" element={<EmpleadoNuevoRoute empleados={empleados} onSave={onSaveEmpleado} />} />
+      <Route path="empleados/importar" element={<ImportarEmpleadosRoute onImport={onImportEmpleados} />} />
+      <Route path="empleados/:id" element={<EmpleadoDetailRoute empleados={empleados} onSave={onSaveEmpleado} onDelete={onDeleteEmpleado} />} />
+      <Route path="parametros" element={
+        <Parametros
+          parametros={parametros} macro={macro} bonos={bonos} conceptosCustom={conceptosCustom}
+          setParametros={updateParametros} setMacro={updateMacro} setBonos={updateBonos}
+          onCrearConcepto={crearConcepto} onActualizarConcepto={actualizarConcepto} onEliminarConcepto={eliminarConcepto}
+        />
+      } />
+      <Route path="escenarios" element={<EscenariosRoute escenarios={escenarios} onGuardar={guardarEscenario} onDelete={deleteEscenario} presupuesto={presupuesto} />} />
+      <Route path="escenarios/:id" element={<EscenarioDetailRoute escenarios={escenarios} presupuestoActual={presupuesto} costosReales={costosReales} />} />
+      <Route path="real-vs-presupuesto" element={
+        <RealVsPresupuesto presupuesto={presupuesto} costosReales={costosReales} onCrear={crearCostoReal} onEliminar={eliminarCostoReal} onImportar={importarCostosReales} />
+      } />
+      <Route path="reportes" element={<Reportes presupuesto={presupuesto} />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 }
 

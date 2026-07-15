@@ -12,6 +12,7 @@ export default function Admin({
   onCrearCliente, onInvitarUsuario, onActualizarPerfil, onEliminarUsuario,
 }) {
   const [tab, setTab] = useState('clientes');
+  const [filtroClienteId, setFiltroClienteId] = useState(null);
 
   return (
     <>
@@ -21,7 +22,7 @@ export default function Admin({
           {TABS.map((t) => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => { setTab(t.key); if (t.key === 'usuarios') return; setFiltroClienteId(null); }}
               style={{
                 padding: '8px 16px', borderRadius: 999, border: 'none', fontSize: 13.5, fontWeight: 700,
                 background: tab === t.key ? COLORS.primary : 'transparent',
@@ -31,10 +32,16 @@ export default function Admin({
           ))}
         </div>
 
-        {tab === 'clientes' && <ClientesTab clientes={clientes} perfiles={perfiles} onCrear={onCrearCliente} />}
+        {tab === 'clientes' && (
+          <ClientesTab
+            clientes={clientes} perfiles={perfiles} onCrear={onCrearCliente}
+            onVerCuentas={(clienteId) => { setFiltroClienteId(clienteId); setTab('usuarios'); }}
+          />
+        )}
         {tab === 'usuarios' && (
           <UsuariosTab
             clientes={clientes} perfiles={perfiles} currentUserId={currentUserId}
+            filtroClienteId={filtroClienteId} onCambiarFiltro={setFiltroClienteId}
             onInvitar={onInvitarUsuario} onActualizar={onActualizarPerfil} onEliminar={onEliminarUsuario}
           />
         )}
@@ -43,7 +50,7 @@ export default function Admin({
   );
 }
 
-function ClientesTab({ clientes, perfiles, onCrear }) {
+function ClientesTab({ clientes, perfiles, onCrear, onVerCuentas }) {
   const [modal, setModal] = useState(false);
   const [nombre, setNombre] = useState('');
 
@@ -51,7 +58,13 @@ function ClientesTab({ clientes, perfiles, onCrear }) {
 
   const columns = [
     { key: 'nombre', label: 'Cliente' },
-    { key: 'nUsuarios', label: 'Usuarios', align: 'right' },
+    { key: 'nUsuarios', label: 'Cuentas', align: 'right' },
+    {
+      key: 'acciones', label: '', align: 'right',
+      render: (r) => (
+        <Button variant="secondary" onClick={(e) => { e.stopPropagation(); onVerCuentas(r.id); }}>Ver cuentas</Button>
+      ),
+    },
   ];
 
   const crear = () => {
@@ -64,11 +77,11 @@ function ClientesTab({ clientes, perfiles, onCrear }) {
     <Card style={{ padding: 0 }}>
       <div style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 12.5, color: COLORS.muted, maxWidth: 460 }}>
-          Cada cliente tiene su propia dotación, parámetros, escenarios y presupuesto — completamente aislados del resto.
+          Cada cliente tiene su propia dotación, parámetros, escenarios y presupuesto — completamente aislados del resto. El admin siempre tiene acceso a los datos y las cuentas de todos los clientes.
         </div>
         <Button onClick={() => setModal(true)}>+ Nuevo cliente</Button>
       </div>
-      {rows.length === 0 ? <EmptyState label="Todavía no hay clientes cargados." /> : <Table columns={columns} rows={rows} />}
+      {rows.length === 0 ? <EmptyState label="Todavía no hay clientes cargados." /> : <Table columns={columns} rows={rows} onRowClick={(r) => onVerCuentas(r.id)} />}
 
       {modal && (
         <Modal title="Nuevo cliente" onClose={() => setModal(false)} width={420}>
@@ -85,12 +98,14 @@ function ClientesTab({ clientes, perfiles, onCrear }) {
   );
 }
 
-function UsuariosTab({ clientes, perfiles, currentUserId, onInvitar, onActualizar, onEliminar }) {
+function UsuariosTab({ clientes, perfiles, currentUserId, filtroClienteId, onCambiarFiltro, onInvitar, onActualizar, onEliminar }) {
   const [modal, setModal] = useState(false);
+  const [aEditar, setAEditar] = useState(null);
   const [aEliminar, setAEliminar] = useState(null);
   const [error, setError] = useState('');
 
   const clienteNombre = (id) => clientes.find((c) => c.id === id)?.nombre || '—';
+  const filtrados = filtroClienteId ? perfiles.filter((p) => p.clienteId === filtroClienteId) : perfiles;
 
   const columns = [
     { key: 'email', label: 'Email' },
@@ -100,28 +115,42 @@ function UsuariosTab({ clientes, perfiles, currentUserId, onInvitar, onActualiza
     {
       key: 'acciones', label: '', align: 'right',
       render: (r) => (
-        <Button
-          variant="danger"
-          onClick={(e) => { e.stopPropagation(); setAEliminar(r); }}
-          disabled={r.id === currentUserId}
-        >Eliminar</Button>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={(e) => { e.stopPropagation(); setAEditar(r); }}>Editar</Button>
+          <Button
+            variant="danger"
+            onClick={(e) => { e.stopPropagation(); setAEliminar(r); }}
+            disabled={r.id === currentUserId}
+          >Eliminar</Button>
+        </div>
       ),
     },
   ];
 
   return (
     <Card style={{ padding: 0 }}>
-      <div style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 12.5, color: COLORS.muted, maxWidth: 460 }}>
-          Invitar manda un mail para que la persona active su cuenta y elija su contraseña. Un cliente puede tener varios usuarios.
+      <div style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12.5, color: COLORS.muted, maxWidth: 420 }}>
+          Invitar manda un mail para que la persona active su cuenta y elija su contraseña. Un cliente puede tener varios usuarios; el admin puede editar o eliminar la cuenta de cualquiera.
         </div>
-        <Button onClick={() => setModal(true)}>+ Invitar usuario</Button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <select
+            value={filtroClienteId || ''}
+            onChange={(e) => onCambiarFiltro(e.target.value ? Number(e.target.value) : null)}
+            style={{ ...inputStyle, minWidth: 180 }}
+          >
+            <option value="">Todos los clientes</option>
+            {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+          <Button onClick={() => setModal(true)}>+ Invitar usuario</Button>
+        </div>
       </div>
-      {perfiles.length === 0 ? <EmptyState label="Todavía no hay usuarios." /> : <Table columns={columns} rows={perfiles} />}
+      {filtrados.length === 0 ? <EmptyState label="No hay cuentas para este filtro." /> : <Table columns={columns} rows={filtrados} />}
 
       {modal && (
         <InvitarModal
           clientes={clientes}
+          clienteIdInicial={filtroClienteId}
           onClose={() => { setModal(false); setError(''); }}
           onInvitar={async (data) => {
             try {
@@ -132,6 +161,15 @@ function UsuariosTab({ clientes, perfiles, currentUserId, onInvitar, onActualiza
             }
           }}
           error={error}
+        />
+      )}
+
+      {aEditar && (
+        <EditarModal
+          perfil={aEditar}
+          clientes={clientes}
+          onClose={() => setAEditar(null)}
+          onGuardar={async (changes) => { await onActualizar(aEditar.id, changes); setAEditar(null); }}
         />
       )}
 
@@ -147,6 +185,48 @@ function UsuariosTab({ clientes, perfiles, currentUserId, onInvitar, onActualiza
         </Modal>
       )}
     </Card>
+  );
+}
+
+function EditarModal({ perfil, clientes, onClose, onGuardar }) {
+  const [nombre, setNombre] = useState(perfil.nombre || '');
+  const [rol, setRol] = useState(perfil.rol);
+  const [clienteId, setClienteId] = useState(perfil.clienteId || clientes[0]?.id || '');
+  const [loading, setLoading] = useState(false);
+
+  const puedeGuardar = rol === 'admin' || clienteId;
+
+  const guardar = async () => {
+    setLoading(true);
+    await onGuardar({ nombre: nombre.trim() || null, rol, cliente_id: rol === 'admin' ? null : Number(clienteId) });
+    setLoading(false);
+  };
+
+  return (
+    <Modal title={`Editar ${perfil.email}`} onClose={onClose} width={460}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Field label="Nombre">
+          <input style={inputStyle} value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+        </Field>
+        <Field label="Rol">
+          <select style={inputStyle} value={rol} onChange={(e) => setRol(e.target.value)}>
+            <option value="cliente">Cliente (ve solo su presupuesto)</option>
+            <option value="admin">Admin de Delenio (ve todos los clientes)</option>
+          </select>
+        </Field>
+        {rol === 'cliente' && (
+          <Field label="Cliente">
+            <select style={inputStyle} value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </Field>
+        )}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+        <Button onClick={guardar} disabled={!puedeGuardar || loading}>{loading ? 'Guardando…' : 'Guardar'}</Button>
+      </div>
+    </Modal>
   );
 }
 
