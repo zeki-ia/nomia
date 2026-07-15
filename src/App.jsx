@@ -90,11 +90,16 @@ function SinAcceso({ perfil, onLogout }) {
   return (
     <FullScreen>
       <div style={{ textAlign: 'center', maxWidth: 380, padding: 24 }}>
-        <div style={{ fontWeight: 700, fontSize: 17, color: COLORS.navy, marginBottom: 8 }}>Todavía no tenés acceso</div>
-        <div style={{ color: COLORS.muted, fontSize: 13.5, marginBottom: 20 }}>
-          Tu cuenta ({perfil?.email}) está creada pero ningún cliente te asignó acceso todavía. Pedile a tu administrador que te invite desde Nomia.
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+        <div style={{ fontWeight: 700, fontSize: 17, color: COLORS.navy, marginBottom: 8 }}>Sin acceso a Nomia</div>
+        <div style={{ color: COLORS.muted, fontSize: 13.5, marginBottom: 20, lineHeight: 1.6 }}>
+          Tu cuenta ({perfil?.email || 'desconocida'}) está autenticada pero no tiene un perfil asignado. Contactá a tu administrador en{' '}
+          <a href="https://hub.talenio.tech" style={{ color: COLORS.primary, fontWeight: 600 }}>hub.talenio.tech</a>.
         </div>
-        <Button variant="secondary" onClick={onLogout}>Cerrar sesión</Button>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <a href="https://hub.talenio.tech" style={{ padding: '9px 20px', background: COLORS.primary, color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 13.5, textDecoration: 'none' }}>Ir al Hub</a>
+          <Button variant="secondary" onClick={onLogout}>Cerrar sesión</Button>
+        </div>
       </div>
     </FullScreen>
   );
