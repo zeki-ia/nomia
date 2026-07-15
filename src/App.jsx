@@ -50,8 +50,11 @@ export default function App() {
       ? supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
           .then(() => { window.history.replaceState({}, '', window.location.pathname); return supabase.auth.getSession() })
       : supabase.auth.getSession()
-    init.then(({ data: { session: s } }) => setSession(s))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    init.then(({ data: { session: s } }) => setSession(s ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      // Ignorar INITIAL_SESSION con null — puede ocurrir antes de que los SSO tokens se procesen
+      if (s || event === 'SIGNED_OUT') setSession(s)
+    });
     return () => subscription.unsubscribe();
   }, []);
 
