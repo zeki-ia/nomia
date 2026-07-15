@@ -60,7 +60,7 @@ export default function App() {
   useEffect(() => {
     if (!session) { setPerfil(null); setPerfilLoading(false); return; }
     setPerfilLoading(true);
-    supabase.from('nomia_perfiles').select('*').eq('id', session.user.id).single().then(({ data }) => {
+    supabase.from('nomia_perfiles').select('*').eq('id', session.user.id).single().then(async ({ data }) => {
       if (data) {
         setPerfil(perfilFromDb(data));
       } else if (session.user.email?.endsWith('@delenio.net')) {
