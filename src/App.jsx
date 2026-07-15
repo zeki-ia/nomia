@@ -61,7 +61,14 @@ export default function App() {
     if (!session) { setPerfil(null); setPerfilLoading(false); return; }
     setPerfilLoading(true);
     supabase.from('nomia_perfiles').select('*').eq('id', session.user.id).single().then(({ data }) => {
-      setPerfil(data ? perfilFromDb(data) : null);
+      if (data) {
+        setPerfil(perfilFromDb(data));
+      } else if (session.user.email?.endsWith('@delenio.net')) {
+        // Admin @delenio.net: acceso completo sin fila en nomia_perfiles
+        setPerfil({ id: session.user.id, email: session.user.email, nombre: session.user.email.split('@')[0], rol: 'admin', clienteId: null });
+      } else {
+        setPerfil(null);
+      }
       setPerfilLoading(false);
     });
   }, [session?.user?.id]);
