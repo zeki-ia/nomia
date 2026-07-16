@@ -40,6 +40,7 @@ export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
   const [perfil, setPerfil] = useState(null);
   const [perfilLoading, setPerfilLoading] = useState(true);
+  const [subStatus, setSubStatus] = useState(null); // null=cargando, 'active'|'none'|'no_company'|'no_product'
 
   useEffect(() => {
     // INITIAL_SESSION: Supabase lo dispara una vez al arrancar con la sesión ya resuelta
@@ -62,7 +63,20 @@ export default function App() {
     setPerfilLoading(true);
     supabase.from('nomia_perfiles').select('*').eq('id', session.user.id).single().then(async ({ data }) => {
       if (data) {
-        setPerfil(perfilFromDb(data));
+        const p = perfilFromDb(data);
+        setPerfil(p);
+        if (p.rol !== 'admin') {
+          // Verificar suscripción activa de la empresa
+          supabase.from('users').select('company_id, products').eq('id', session.user.id).maybeSingle().then(({ data: u }) => {
+            if (!u?.company_id) { setSubStatus('no_company'); return; }
+            if (u.products?.length > 0 && !u.products.includes('nomia')) { setSubStatus('no_product'); return; }
+            supabase.from('subscriptions').select('status').eq('company_id', u.company_id).eq('product', 'nomia').maybeSingle().then(({ data: sub }) => {
+              setSubStatus(sub?.status || 'none');
+            });
+          });
+        } else {
+          setSubStatus('active');
+        }
       } else if (session.user.email?.endsWith('@delenio.net')) {
         // Admin @delenio.net: crear perfil via hub API (service role bypasa RLS)
         const { data: { session: s } } = await supabase.auth.getSession();
@@ -72,8 +86,10 @@ export default function App() {
           body: JSON.stringify({ action: 'syncAdminProfiles', adminUserId: session.user.id, adminEmail: session.user.email }),
         }).catch(() => {});
         setPerfil({ id: session.user.id, email: session.user.email, nombre: session.user.email.split('@')[0], rol: 'admin', clienteId: null });
+        setSubStatus('active');
       } else {
         setPerfil(null);
+        setSubStatus('none');
       }
       setPerfilLoading(false);
     });
@@ -81,7 +97,9 @@ export default function App() {
 
   const logout = () => supabase.auth.signOut();
 
-  if (session === undefined || (session && perfilLoading)) {
+  const subLoading = perfil && perfil.rol !== 'admin' && subStatus === null;
+
+  if (session === undefined || (session && perfilLoading) || subLoading) {
     return <FullScreen><Spinner label="Cargando…" /></FullScreen>;
   }
 
@@ -92,6 +110,7 @@ export default function App() {
       <Route path="/*" element={
         !session ? <Navigate to="/login" replace />
         : !perfil || (perfil.rol === 'cliente' && !perfil.clienteId) ? <SinAcceso perfil={perfil} onLogout={logout} />
+        : subStatus !== 'active' ? <SinSuscripcion status={subStatus} onLogout={logout} />
         : <AppAutenticada perfil={perfil} onLogout={logout} />
       } />
     </Routes>
@@ -106,6 +125,32 @@ function SinAcceso({ perfil, onLogout }) {
         <div style={{ fontWeight: 700, fontSize: 17, color: COLORS.navy, marginBottom: 8 }}>Sin acceso a Nomia</div>
         <div style={{ color: COLORS.muted, fontSize: 13.5, marginBottom: 20, lineHeight: 1.6 }}>
           Tu cuenta ({perfil?.email || 'desconocida'}) está autenticada pero no tiene un perfil asignado. Contactá a tu administrador en{' '}
+          <a href="https://hub.talenio.tech" style={{ color: COLORS.primary, fontWeight: 600 }}>hub.talenio.tech</a>.
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <a href="https://hub.talenio.tech" style={{ padding: '9px 20px', background: COLORS.primary, color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 13.5, textDecoration: 'none' }}>Ir al Hub</a>
+          <Button variant="secondary" onClick={onLogout}>Cerrar sesión</Button>
+        </div>
+      </div>
+    </FullScreen>
+  );
+}
+
+function SinSuscripcion({ status, onLogout }) {
+  const msgs = {
+    no_company: 'Tu usuario no tiene una empresa asignada. Contactá a tu administrador.',
+    no_product: 'Tu usuario no tiene acceso habilitado a Nomia. Contactá a tu administrador.',
+    none:       'Tu empresa no tiene una suscripción activa en Nomia.',
+    suspended:  'Tu suscripción a Nomia está suspendida.',
+  };
+  return (
+    <FullScreen>
+      <div style={{ textAlign: 'center', maxWidth: 400, padding: 24 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+        <div style={{ fontWeight: 700, fontSize: 17, color: COLORS.navy, marginBottom: 8 }}>Acceso no disponible</div>
+        <div style={{ color: COLORS.muted, fontSize: 13.5, marginBottom: 20, lineHeight: 1.6 }}>
+          {msgs[status] || 'No tenés acceso activo a Nomia.'}{' '}
+          Podés gestionar tu suscripción en{' '}
           <a href="https://hub.talenio.tech" style={{ color: COLORS.primary, fontWeight: 600 }}>hub.talenio.tech</a>.
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
