@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { TopBar, Page, Card, Table, Badge, Button, Modal, Field, inputStyle } from '../components/ui.jsx';
 import { CECOS, SENIORITIES, COLORS } from '../data/seed.js';
-import { fmtARS } from '../lib/payrollEngine.js';
+import { fmtARS, downloadCSV } from '../lib/payrollEngine.js';
 
 export default function Empleados({ empleados, onRowClick, onNew, onImport, onBulkUpdate, onBulkDelete }) {
   const [query, setQuery] = useState('');
@@ -71,6 +71,7 @@ export default function Empleados({ empleados, onRowClick, onNew, onImport, onBu
   return (
     <>
       <TopBar title="Dotación" subtitle={`${empleados.length} empleados cargados`} actions={<>
+        <Button variant="secondary" onClick={() => downloadCSV('empleados.csv', ['codigo','nombre','cargo','seniority','centroCosto','sueldoBase','mesesActivos'], filtrados.map(e => ({ codigo: e.codigo, nombre: e.nombre, cargo: e.cargo, seniority: e.seniority, centroCosto: cecoLabel(e.centroCosto), sueldoBase: e.sueldoBase, mesesActivos: e.mesesActivo.filter(Boolean).length })))}>↓ Exportar CSV</Button>
         <Button variant="secondary" onClick={onImport}>⬆ Importar</Button>
         <Button onClick={onNew}>+ Nuevo empleado</Button>
       </>} />

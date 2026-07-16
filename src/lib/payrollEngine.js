@@ -212,6 +212,14 @@ export function calcularDesvios(costoMensualARS, costosReales, year = 2026) {
   return { filas, mesesCargados: cargados.length, totalPresupuestoCargado, totalRealCargado, desvioAcumuladoARS, desvioAcumuladoPct };
 }
 
+export function downloadCSV(filename, headers, rows) {
+  const escape = (v) => (v == null ? '' : String(v).includes(',') || String(v).includes('"') || String(v).includes('\n') ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  const csv = [headers, ...rows.map(r => headers.map(h => escape(r[h])))].map(row => row.join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+  URL.revokeObjectURL(url);
+}
+
 export const fmtARS = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
 export const fmtUSD = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n || 0);
 export const fmtPct = (n) => new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 }).format(n || 0);

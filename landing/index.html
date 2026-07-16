@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nomia — Presupuestá el payroll de tu empresa sin sorpresas</title>
+<meta name="description" content="Nomia es la plataforma de Delenio People para presupuestar costo de nómina, comparar escenarios y hacer seguimiento de desvíos vs. lo real — pensada para PyMEs argentinas." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #2B3FE0;
+    --primary-deep: #002EE5;
+    --primary-soft: #EEF0FF;
+    --navy: #10141F;
+    --green: #22B24C;
+    --green-soft: #E7FBF3;
+    --teal: #65E3C3;
+    --mint: #8CFFB0;
+    --bg: #F8F9FE;
+    --surface: #FFFFFF;
+    --border: #E7E9EF;
+    --border-strong: #DFE2E9;
+    --muted: #7B8299;
+    --muted-soft: #9AA1B5;
+    --warning: #B7791F;
+    --warning-soft: #FFF7E6;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: 'Manrope', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--navy);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: 'Sora', system-ui, sans-serif; margin: 0; }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 26px; border-radius: 999px; font-weight: 700; font-size: 14.5px;
+    border: none; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 8px 20px -6px rgba(43,63,224,.55); }
+  .btn-primary:hover { box-shadow: 0 12px 26px -6px rgba(43,63,224,.65); }
+  .btn-ghost { background: transparent; color: var(--navy); border: 1.5px solid var(--border-strong); }
+  .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-light { background: rgba(255,255,255,.15); color: #fff; border: 1.5px solid rgba(255,255,255,.35); }
+
+  /* Nav */
+  header {
+    position: sticky; top: 0; z-index: 50; background: rgba(248,249,254,.85);
+    backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+  }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-badge {
+    width: 34px; height: 34px; border-radius: 10px; background: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Sora', sans-serif; font-weight: 800; color: #fff; font-size: 16px; flex-shrink: 0;
+  }
+  .brand-name { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 17px; line-height: 1.1; }
+  .brand-sub { font-size: 11px; color: var(--muted); }
+  .nav-links { display: flex; align-items: center; gap: 30px; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .nav-links a:hover { color: var(--navy); }
+  .nav-cta { display: flex; align-items: center; gap: 14px; }
+  .nav-toggle { display: none; background: none; border: none; font-size: 22px; cursor: pointer; }
+
+  /* Hero */
+  .hero { padding: 76px 0 40px; position: relative; overflow: hidden; }
+  .hero-glow {
+    position: absolute; top: -220px; right: -160px; width: 560px; height: 560px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(43,63,224,.16), transparent 70%); pointer-events: none;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px; background: var(--primary-soft); color: var(--primary);
+    font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .hero h1 { font-size: 46px; line-height: 1.12; letter-spacing: -0.02em; max-width: 760px; }
+  .hero h1 span { color: var(--primary); }
+  .hero p.lead { font-size: 17.5px; color: var(--muted); max-width: 560px; margin-top: 20px; line-height: 1.6; }
+  .hero-actions { display: flex; gap: 14px; margin-top: 32px; flex-wrap: wrap; }
+  .hero-note { font-size: 13px; color: var(--muted-soft); margin-top: 16px; }
+
+  /* Mock dashboard */
+  .mock {
+    margin-top: 56px; background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
+    box-shadow: 0 30px 70px -30px rgba(16,20,31,.25); overflow: hidden;
+  }
+  .mock-top { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .mock-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+  .mock-body { display: grid; grid-template-columns: 200px 1fr; min-height: 340px; }
+  .mock-side { border-right: 1px solid var(--border); padding: 20px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .mock-side-item { padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .mock-side-item.active { background: var(--primary-soft); color: var(--primary); }
+  .mock-main { padding: 22px; }
+  .mock-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+  .mock-kpi { border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .mock-kpi-label { font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  .mock-kpi-value { font-family: 'Sora', sans-serif; font-size: 19px; font-weight: 700; }
+  .mock-chart { border: 1px solid var(--border); border-radius: 14px; padding: 18px; height: 150px; display: flex; align-items: flex-end; gap: 8px; }
+  .mock-bar { flex: 1; background: linear-gradient(180deg, var(--primary), var(--primary-deep)); border-radius: 6px 6px 0 0; }
+
+  /* Sections */
+  section { padding: 88px 0; }
+  .section-head { max-width: 620px; margin-bottom: 52px; }
+  .section-tag { color: var(--primary); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; display: block; }
+  .section-head h2 { font-size: 32px; letter-spacing: -0.01em; line-height: 1.25; }
+  .section-head p { color: var(--muted); font-size: 15.5px; margin-top: 14px; line-height: 1.6; }
+
+  /* Problem */
+  .problem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .problem-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 26px;
+  }
+  .problem-card .ic { font-size: 26px; margin-bottom: 16px; }
+  .problem-card h3 { font-size: 16.5px; margin-bottom: 8px; }
+  .problem-card p { font-size: 14px; color: var(--muted); line-height: 1.55; margin: 0; }
+
+  /* Features */
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 26px;
+    transition: border-color .15s ease, transform .15s ease;
+  }
+  .feature-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+  .feature-icon {
+    width: 42px; height: 42px; border-radius: 12px; background: var(--primary-soft); color: var(--primary);
+    display: flex; align-items: center; justify-content: center; font-size: 19px; margin-bottom: 16px;
+  }
+  .feature-card h3 { font-size: 16px; margin-bottom: 8px; }
+  .feature-card p { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin: 0; }
+  .feature-badge {
+    display: inline-block; margin-top: 12px; font-size: 11px; font-weight: 700; color: var(--green);
+    background: var(--green-soft); padding: 3px 10px; border-radius: 999px;
+  }
+
+  /* How it works */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; counter-reset: step; }
+  .step { position: relative; padding-top: 8px; }
+  .step-num {
+    width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; font-weight: 800;
+    font-size: 15px; margin-bottom: 18px;
+  }
+  .step h3 { font-size: 15.5px; margin-bottom: 8px; }
+  .step p { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin: 0; }
+
+  /* Audience */
+  .audience { background: var(--navy); border-radius: 28px; padding: 56px; color: #fff; }
+  .audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+  .audience h2 { font-size: 30px; color: #fff; line-height: 1.25; }
+  .audience p { color: rgba(255,255,255,.68); font-size: 15px; margin-top: 16px; line-height: 1.6; }
+  .audience-list { display: flex; flex-direction: column; gap: 18px; }
+  .audience-item { display: flex; gap: 14px; align-items: flex-start; }
+  .audience-item .dot {
+    width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.12); color: var(--mint);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; margin-top: 2px;
+  }
+  .audience-item strong { font-size: 14.5px; display: block; margin-bottom: 3px; }
+  .audience-item span { font-size: 13.5px; color: rgba(255,255,255,.62); line-height: 1.5; }
+
+  /* AI */
+  .ai-banner {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;
+    background: linear-gradient(135deg, var(--primary-soft), #fff); border: 1px solid var(--border);
+    border-radius: 24px; padding: 48px;
+  }
+  .ai-banner .section-tag { display: inline-block; }
+  .ai-banner h2 { font-size: 27px; line-height: 1.3; }
+  .ai-banner p { color: var(--muted); font-size: 14.5px; margin-top: 14px; line-height: 1.6; }
+  .ai-chat { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: 0 20px 45px -25px rgba(16,20,31,.3); }
+  .ai-msg { font-size: 13px; padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; line-height: 1.5; }
+  .ai-msg.user { background: var(--bg); color: var(--navy); }
+  .ai-msg.bot { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+
+  /* CTA */
+  .cta { text-align: center; padding: 90px 0; }
+  .cta-card {
+    background: linear-gradient(135deg, var(--primary), var(--primary-deep)); border-radius: 28px; padding: 64px 40px;
+    color: #fff; position: relative; overflow: hidden;
+  }
+  .cta-card h2 { font-size: 32px; color: #fff; max-width: 560px; margin: 0 auto; line-height: 1.3; }
+  .cta-card p { color: rgba(255,255,255,.78); font-size: 15.5px; margin: 16px auto 30px; max-width: 460px; }
+  .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  footer { border-top: 1px solid var(--border); padding: 40px 0; }
+  .footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .footer-note { font-size: 12.5px; color: var(--muted-soft); }
+
+  @media (max-width: 860px) {
+    .nav-links, .nav-cta .btn-ghost { display: none; }
+    .nav-toggle { display: block; }
+    .hero h1 { font-size: 32px; }
+    .hero p.lead { font-size: 15.5px; }
+    .mock-body { grid-template-columns: 1fr; }
+    .mock-side { display: none; }
+    .mock-kpis { grid-template-columns: repeat(2, 1fr); }
+    .problem-grid, .features-grid { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: repeat(2, 1fr); }
+    .audience-grid { grid-template-columns: 1fr; }
+    .audience { padding: 36px 24px; }
+    .ai-banner { grid-template-columns: 1fr; padding: 32px 24px; }
+    .cta-card { padding: 44px 24px; }
+    .cta-card h2 { font-size: 25px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="wrap">
+    <div class="brand">
+      <div class="brand-badge">N</div>
+      <div>
+        <div class="brand-name">Nomia</div>
+        <div class="brand-sub">Delenio People</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="#problema">El problema</a>
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#como-funciona">Cómo funciona</a>
+      <a href="#para-quien">Para quién</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="https://wa.me/5491140566256?text=Hola!%20Quiero%20conocer%20Nomia." target="_blank" rel="noreferrer">WhatsApp</a>
+      <a class="btn btn-primary" href="https://calendar.app.google/zY9utMohwouuJ1YD9" target="_blank" rel="noreferrer">Agendá una demo</a>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="wrap">
+    <span class="eyebrow">✦ Presupuesto de payroll con IA</span>
+    <h1>Presupuestá el costo de nómina de tu empresa <span>sin planillas rotas ni sorpresas.</span></h1>
+    <p class="lead">Nomia es la plataforma de Delenio People para armar el presupuesto anual de payroll, simular escenarios y comparar contra el costo real — todo en un solo lugar, pensado para la realidad de la PyME argentina (inflación, ajustes salariales y tipo de cambio incluidos).</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://calendar.app.google/zY9utMohwouuJ1YD9" target="_blank" rel="noreferrer">Agendá una demo</a>
+      <a class="btn btn-ghost" href="https://wa.me/5491140566256?text=Hola!%20Quiero%20conocer%20Nomia." target="_blank" rel="noreferrer">Escribinos por WhatsApp</a>
+    </div>
+    <div class="hero-note"><a href="#funcionalidades" style="text-decoration:underline">Ver funcionalidades</a> · Multi-cliente · Roles y accesos · Sin instalación</div>
+
+    <div class="mock">
+      <div class="mock-top">
+        <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
+      </div>
+      <div class="mock-body">
+        <div class="mock-side">
+          <div class="mock-side-item active">◇ Dashboard</div>
+          <div class="mock-side-item">☰ Dotación</div>
+          <div class="mock-side-item">⚙ Parámetros</div>
+          <div class="mock-side-item">⌥ Escenarios</div>
+          <div class="mock-side-item">⇄ Real vs. Presupuesto</div>
+          <div class="mock-side-item">▤ Reportes</div>
+        </div>
+        <div class="mock-main">
+          <div class="mock-kpis">
+            <div class="mock-kpi"><div class="mock-kpi-label">Costo anual (ARS)</div><div class="mock-kpi-value">$ 1.477.600.217</div></div>
+            <div class="mock-kpi"><div class="mock-kpi-label">Costo anual (USD)</div><div class="mock-kpi-value" style="color:var(--green)">$ 981.679</div></div>
+            <div class="mock-kpi"><div class="mock-kpi-label">Headcount promedio</div><div class="mock-kpi-value">17,3</div></div>
+            <div class="mock-kpi"><div class="mock-kpi-label">Costo prom. / empleado</div><div class="mock-kpi-value">$ 7.138.165</div></div>
+          </div>
+          <div class="mock-chart">
+            <div class="mock-bar" style="height:38%"></div>
+            <div class="mock-bar" style="height:44%"></div>
+            <div class="mock-bar" style="height:52%"></div>
+            <div class="mock-bar" style="height:58%"></div>
+            <div class="mock-bar" style="height:63%"></div>
+            <div class="mock-bar" style="height:69%"></div>
+            <div class="mock-bar" style="height:74%"></div>
+            <div class="mock-bar" style="height:80%"></div>
+            <div class="mock-bar" style="height:86%"></div>
+            <div class="mock-bar" style="height:91%"></div>
+            <div class="mock-bar" style="height:96%"></div>
+            <div class="mock-bar" style="height:100%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="problema">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-tag">El problema</span>
+      <h2>El gran dolor de las PyMEs: no saber presupuestar payroll a tiempo.</h2>
+      <p>El Excel de siempre funciona hasta que deja de funcionar: se vuelve frágil, nadie más lo entiende, y comparar el plan contra la realidad es un trabajo manual que casi nadie sostiene mes a mes.</p>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="ic">📎</div>
+        <h3>Planillas que solo entiende una persona</h3>
+        <p>Fórmulas encadenadas, pestañas ocultas y una sola persona que sabe tocarlo sin romperlo.</p>
+      </div>
+      <div class="problem-card">
+        <div class="ic">📉</div>
+        <h3>Sin visibilidad de desvíos</h3>
+        <p>El presupuesto se arma una vez al año y nadie vuelve a compararlo contra el costo real hasta que ya es tarde.</p>
+      </div>
+      <div class="problem-card">
+        <div class="ic">🔁</div>
+        <h3>Variables que cambian todo el tiempo</h3>
+        <p>Inflación, ajustes salariales, tipo de cambio, sindicatos, beneficios — todo impacta el costo y nada de eso vive en una sola fórmula.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="funcionalidades">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-tag">Funcionalidades</span>
+      <h2>Todo lo que necesitás para presupuestar payroll, en un solo lugar.</h2>
+      <p>Nomia toma el modelo de presupuesto que ya usás y lo convierte en una herramienta viva: editable, comparable y compartible con tu equipo o con tus clientes.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">☰</div>
+        <h3>Dotación completa</h3>
+        <p>Cargá, editá y eliminá empleados uno por uno o en lote. Importá desde Excel o CSV — incluso desde tu planilla actual.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚙</div>
+        <h3>Parámetros y costeos configurables</h3>
+        <p>Cargas sociales, beneficios, bonos por seniority, aportes sindicales — creá, editá o eliminá cada concepto de costo que tu empresa necesite.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⌥</div>
+        <h3>Escenarios comparables</h3>
+        <p>Guardá versiones del presupuesto y compará el impacto de cada supuesto antes de decidir.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⇄</div>
+        <h3>Real vs. Presupuesto</h3>
+        <p>Cargá el costo real mes a mes y viví el desvío al instante — en el dashboard, por escenario y en pesos y porcentaje.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏢</div>
+        <h3>Multi-cliente, con roles</h3>
+        <p>Ideal para consultoras: cada cliente tiene su propio espacio, aislado, con sus propios usuarios y accesos.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✦</div>
+        <h3>Copiloto con IA</h3>
+        <p>Describí un cambio de política de costos en lenguaje natural y dejá que la IA proponga el ajuste — vos confirmás antes de aplicar.</p>
+        <span class="feature-badge">Powered by Claude</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ai-section">
+  <div class="wrap">
+    <div class="ai-banner">
+      <div>
+        <span class="section-tag">✦ Inteligencia artificial</span>
+        <h2>"El sindicato de comercio pide 2% adicional sobre el sueldo bruto de Ventas."</h2>
+        <p>Se lo escribís a Nomia como se lo dirías a tu contador. La IA lo traduce en un cambio concreto y auditable sobre tu presupuesto — nunca se aplica nada sin que lo confirmes vos.</p>
+      </div>
+      <div class="ai-chat">
+        <div class="ai-msg user">"Subí el bono de los gerentes a 4 sueldos anuales."</div>
+        <div class="ai-msg bot">✓ Propuesta: Bono Manager 3 → 4 sueldos/año · Confirmar cambio</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="como-funciona">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-tag">Cómo funciona</span>
+      <h2>De la planilla al presupuesto vivo, en cuatro pasos.</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Cargá tu dotación</h3>
+        <p>Importá tu Excel actual o cargá empleados manualmente. Nomia entiende tu estructura.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Configurá los parámetros</h3>
+        <p>Cargas sociales, beneficios, bonos y cualquier concepto propio de tu empresa.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Presupuestá el año</h3>
+        <p>Mirá el costo mes a mes, por centro de costo, por seniority y en ARS o USD.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h3>Compará real vs. plan</h3>
+        <p>Cargá el costo real y hacé seguimiento de los desvíos durante todo el año.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="para-quien">
+  <div class="wrap">
+    <div class="audience">
+      <div class="audience-grid">
+        <div>
+          <span class="section-tag" style="color:var(--mint)">Para quién es</span>
+          <h2>Pensado para quien tiene que responder por el número de payroll.</h2>
+          <p>Ya seas el equipo de RRHH o Finanzas de una PyME, o una consultora que gestiona el presupuesto de varios clientes a la vez.</p>
+        </div>
+        <div class="audience-list">
+          <div class="audience-item">
+            <div class="dot">🏢</div>
+            <div><strong>PyMEs argentinas</strong><span>Que necesitan presupuestar payroll sin depender de un Excel frágil ni de una sola persona.</span></div>
+          </div>
+          <div class="audience-item">
+            <div class="dot">🤝</div>
+            <div><strong>Consultoras de RRHH</strong><span>Que gestionan el presupuesto de varios clientes y necesitan un espacio aislado por cada uno.</span></div>
+          </div>
+          <div class="audience-item">
+            <div class="dot">📊</div>
+            <div><strong>Equipos de Finanzas y RRHH</strong><span>Que necesitan responder rápido cuándo la dirección pregunta "¿por qué nos desviamos del plan?"</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta" id="cta">
+  <div class="wrap">
+    <div class="cta-card">
+      <h2>¿Le mostramos Nomia a tu equipo?</h2>
+      <p>Coordinemos una demo de 20 minutos con tu presupuesto real, sin compromiso.</p>
+      <div class="cta-actions">
+        <a class="btn btn-primary" style="background:#fff;color:var(--primary)" href="https://calendar.app.google/zY9utMohwouuJ1YD9" target="_blank" rel="noreferrer">Agendá una demo</a>
+        <a class="btn btn-light" href="https://wa.me/5491140566256?text=Hola!%20Quiero%20conocer%20Nomia." target="_blank" rel="noreferrer">Escribinos por WhatsApp</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footer-row">
+    <div class="brand">
+      <div class="brand-badge">N</div>
+      <div>
+        <div class="brand-name" style="font-size:15px">Nomia</div>
+        <div class="brand-sub">Un producto de Delenio People</div>
+      </div>
+    </div>
+    <div class="footer-note">© 2026 Delenio People. Todos los derechos reservados.</div>
+  </div>
+</footer>
+
+</body>
+</html>

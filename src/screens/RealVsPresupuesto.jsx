@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TopBar, Page, Card, Field, Button, Modal, Badge, inputStyle } from '../components/ui.jsx';
 import { COLORS, MESES } from '../data/seed.js';
-import { calcularDesvios, fmtARS, fmtPct } from '../lib/payrollEngine.js';
+import { calcularDesvios, fmtARS, fmtPct, downloadCSV } from '../lib/payrollEngine.js';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function RealVsPresupuesto({ presupuesto, costosReales, onCrear, onEliminar, onImportar }) {
@@ -18,6 +18,7 @@ export default function RealVsPresupuesto({ presupuesto, costosReales, onCrear, 
         title="Real vs. Presupuesto"
         subtitle="Cargá el costo real de cada mes para ver desvíos contra lo presupuestado"
         actions={<>
+          <Button variant="secondary" onClick={() => downloadCSV('real-vs-presupuesto.csv', ['mes','presupuesto','real','desvioARS','desvioPct'], filas.map(f => ({ mes: f.mes, presupuesto: f.presupuesto, real: f.tieneReal ? f.real : '', desvioARS: f.desvioARS ?? '', desvioPct: f.desvioPct != null ? fmtPct(f.desvioPct) : '' })))}>↓ Exportar CSV</Button>
           <Button variant="secondary" onClick={() => setModalImport(true)}>⬆ Importar CSV</Button>
           <Button onClick={() => setModal(true)}>+ Cargar mes</Button>
         </>}

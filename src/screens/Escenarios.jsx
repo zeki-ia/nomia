@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TopBar, Page, Card, Table, Button, Modal, Field, inputStyle, Badge, EmptyState } from '../components/ui.jsx';
-import { computePresupuesto, fmtARS, fmtPct } from '../lib/payrollEngine.js';
+import { computePresupuesto, fmtARS, fmtPct, downloadCSV } from '../lib/payrollEngine.js';
 
 export default function Escenarios({ escenarios, presupuesto, onGuardar, onDelete, onRowClick }) {
   const [showModal, setShowModal] = useState(false);
@@ -38,9 +38,10 @@ export default function Escenarios({ escenarios, presupuesto, onGuardar, onDelet
 
   return (
     <>
-      <TopBar title="Escenarios" subtitle="Guardá versiones del presupuesto y compará el impacto de cada supuesto" actions={
+      <TopBar title="Escenarios" subtitle="Guardá versiones del presupuesto y compará el impacto de cada supuesto" actions={<>
+        {rows.length > 0 && <Button variant="secondary" onClick={() => downloadCSV('escenarios.csv', ['nombre','fecha','headcountPromedio','costoAnualARS','deltaVsActual'], rows.map(r => ({ nombre: r.nombre, fecha: new Date(r.fecha).toLocaleDateString('es-AR'), headcountPromedio: r.headcountPromedio.toFixed(1), costoAnualARS: r.totalAnualARS, deltaVsActual: fmtPct(r.delta) })))}>↓ Exportar CSV</Button>}
         <Button onClick={() => setShowModal(true)}>+ Guardar escenario actual</Button>
-      } />
+      </>} />
       <Page>
         <Card style={{ padding: 0 }}>
           {rows.length === 0
