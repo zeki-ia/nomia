@@ -457,12 +457,13 @@ function AppAutenticada({ perfil, onLogout }) {
                 clientes={clientes} perfiles={perfiles} currentUserId={perfil.id}
                 onCrearCliente={crearCliente} onInvitarUsuario={onInvitarUsuario}
                 onActualizarPerfil={onActualizarPerfil} onEliminarUsuario={onEliminarUsuario}
+                onEntrarCliente={setClienteActivoId}
               />
             ) : <Navigate to="/dashboard" replace />
           } />
           <Route path="/*" element={
             !clienteActivoId ? (
-              <SeleccionarCliente clientes={clientes} perfiles={perfiles} onSeleccionar={setClienteActivoId} />
+              esAdmin ? <Navigate to="/admin" replace /> : <SeleccionarCliente clientes={clientes} perfiles={perfiles} onSeleccionar={setClienteActivoId} />
             ) : (loading || !parametros) ? (
               <FullScreen><Spinner label="Cargando presupuesto…" /></FullScreen>
             ) : (

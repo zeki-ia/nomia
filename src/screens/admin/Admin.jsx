@@ -9,7 +9,7 @@ const TABS = [
 
 export default function Admin({
   clientes, perfiles, currentUserId,
-  onCrearCliente, onInvitarUsuario, onActualizarPerfil, onEliminarUsuario,
+  onCrearCliente, onInvitarUsuario, onActualizarPerfil, onEliminarUsuario, onEntrarCliente,
 }) {
   const [tab, setTab] = useState('clientes');
   const [filtroClienteId, setFiltroClienteId] = useState(null);
@@ -35,6 +35,7 @@ export default function Admin({
         {tab === 'clientes' && (
           <ClientesTab
             clientes={clientes} perfiles={perfiles} onCrear={onCrearCliente}
+            onEntrar={onEntrarCliente}
             onVerCuentas={(clienteId) => { setFiltroClienteId(clienteId); setTab('usuarios'); }}
           />
         )}
@@ -50,7 +51,7 @@ export default function Admin({
   );
 }
 
-function ClientesTab({ clientes, perfiles, onCrear, onVerCuentas }) {
+function ClientesTab({ clientes, perfiles, onCrear, onVerCuentas, onEntrar }) {
   const [modal, setModal] = useState(false);
   const [nombre, setNombre] = useState('');
 
@@ -62,7 +63,10 @@ function ClientesTab({ clientes, perfiles, onCrear, onVerCuentas }) {
     {
       key: 'acciones', label: '', align: 'right',
       render: (r) => (
-        <Button variant="secondary" onClick={(e) => { e.stopPropagation(); onVerCuentas(r.id); }}>Ver cuentas</Button>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={(e) => { e.stopPropagation(); onVerCuentas(r.id); }}>Ver cuentas</Button>
+          <Button onClick={(e) => { e.stopPropagation(); onEntrar(r.id); }}>Entrar →</Button>
+        </div>
       ),
     },
   ];
@@ -81,7 +85,7 @@ function ClientesTab({ clientes, perfiles, onCrear, onVerCuentas }) {
         </div>
         <Button onClick={() => setModal(true)}>+ Nuevo cliente</Button>
       </div>
-      {rows.length === 0 ? <EmptyState label="Todavía no hay clientes cargados." /> : <Table columns={columns} rows={rows} onRowClick={(r) => onVerCuentas(r.id)} />}
+      {rows.length === 0 ? <EmptyState label="Todavía no hay clientes cargados." /> : <Table columns={columns} rows={rows} onRowClick={(r) => onEntrar(r.id)} />}
 
       {modal && (
         <Modal title="Nuevo cliente" onClose={() => setModal(false)} width={420}>
