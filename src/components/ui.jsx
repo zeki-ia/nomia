@@ -67,18 +67,18 @@ export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, o
           </NavLink>
         ))}
         {esAdmin && (
-          <NavLink
-            to="/admin"
-            style={({ isActive }) => ({
+          <a
+            href="https://hub.talenio.tech"
+            target="_blank" rel="noreferrer"
+            style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
               fontSize: 14, fontWeight: 600, marginTop: 10, borderTop: `1px solid ${COLORS.border}`, paddingTop: 20,
-              color: isActive ? COLORS.primary : COLORS.muted,
-              background: isActive ? COLORS.primarySoft : 'transparent',
-            })}
+              color: COLORS.muted, textDecoration: 'none',
+            }}
           >
             <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>◆</span>
-            Administración
-          </NavLink>
+            Administración (Hub)
+          </a>
         )}
       </nav>
 

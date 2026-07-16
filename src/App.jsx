@@ -8,7 +8,7 @@ import {
   empleadoFromDb, empleadoToDb, nextCodigo, conceptoFromDb, escenarioFromDb,
   clienteFromDb, perfilFromDb, costoRealFromDb, costoRealToDb,
 } from './lib/supabaseMappers.js';
-import { invitarUsuario, eliminarUsuario, crearClienteAdmin } from './lib/adminClient.js';
+import { crearClienteAdmin } from './lib/adminClient.js';
 
 import Login from './screens/Login.jsx';
 import CompletarRegistro from './screens/CompletarRegistro.jsx';
@@ -21,7 +21,6 @@ import EscenarioDetail from './screens/EscenarioDetail.jsx';
 import Reportes from './screens/Reportes.jsx';
 import ImportarEmpleados from './screens/ImportarEmpleados.jsx';
 import RealVsPresupuesto from './screens/RealVsPresupuesto.jsx';
-import Admin from './screens/admin/Admin.jsx';
 import SeleccionarCliente from './screens/SeleccionarCliente.jsx';
 
 function FullScreen({ children }) {
@@ -205,10 +204,6 @@ function AppAutenticada({ perfil, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const refreshPerfiles = useCallback(async () => {
-    const { data } = await supabase.from('nomia_perfiles').select('*').order('email');
-    setPerfiles((data || []).map(perfilFromDb));
-  }, []);
 
   // Datos del cliente activo — se recargan cada vez que un admin cambia de cliente.
   useEffect(() => {
@@ -416,22 +411,6 @@ function AppAutenticada({ perfil, onLogout }) {
     setClientes((prev) => [...prev, clienteFromDb(cliente)].sort((a, b) => a.nombre.localeCompare(b.nombre)));
   };
 
-  const onInvitarUsuario = async (data) => {
-    await invitarUsuario(data);
-    await refreshPerfiles();
-  };
-
-  const onEliminarUsuario = async (id) => {
-    await eliminarUsuario(id);
-    await refreshPerfiles();
-  };
-
-  const onActualizarPerfil = async (id, changes) => {
-    const { error: err } = await supabase.from('nomia_perfiles').update(changes).eq('id', id);
-    if (err) return console.error(err);
-    await refreshPerfiles();
-  };
-
   if (error) {
     return (
       <FullScreen>
@@ -451,19 +430,10 @@ function AppAutenticada({ perfil, onLogout }) {
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Routes>
-          <Route path="/admin" element={
-            esAdmin ? (
-              <Admin
-                clientes={clientes} perfiles={perfiles} currentUserId={perfil.id}
-                onCrearCliente={crearCliente} onInvitarUsuario={onInvitarUsuario}
-                onActualizarPerfil={onActualizarPerfil} onEliminarUsuario={onEliminarUsuario}
-                onEntrarCliente={setClienteActivoId}
-              />
-            ) : <Navigate to="/dashboard" replace />
-          } />
+          <Route path="/admin" element={<Navigate to="/" replace />} />
           <Route path="/*" element={
             !clienteActivoId ? (
-              esAdmin ? <Navigate to="/admin" replace /> : <SeleccionarCliente clientes={clientes} perfiles={perfiles} onSeleccionar={setClienteActivoId} />
+              <SeleccionarCliente clientes={clientes} perfiles={perfiles} onSeleccionar={setClienteActivoId} />
             ) : (loading || !parametros) ? (
               <FullScreen><Spinner label="Cargando presupuesto…" /></FullScreen>
             ) : (

@@ -1,14 +1,19 @@
 import { TopBar, Page, Card } from '../components/ui.jsx';
 import { COLORS } from '../data/seed.js';
 
-// Landing del admin: primero elegís el cliente, después entrás a ver sus funcionalidades
-// (Dashboard, Dotación, Parámetros, etc.) — mismo patrón que PromotIA y Climia.
 export default function SeleccionarCliente({ clientes, perfiles, onSeleccionar }) {
   const nUsuarios = (clienteId) => perfiles.filter((p) => p.clienteId === clienteId).length;
 
   return (
     <>
-      <TopBar title="Elegí un cliente" subtitle="Cada cliente tiene su propia dotación, parámetros y presupuesto" />
+      <TopBar title="Clientes" subtitle="Seleccioná un cliente para acceder a su dotación, parámetros y presupuesto"
+        actions={
+          <a href="https://hub.talenio.tech" target="_blank" rel="noreferrer"
+            style={{ padding: '7px 14px', borderRadius: 8, background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+            + Gestionar en Hub
+          </a>
+        }
+      />
       <Page>
         {clientes.length === 0 ? (
           <Card>
