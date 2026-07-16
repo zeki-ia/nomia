@@ -61,6 +61,22 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, id: targetId });
     }
 
+    if (action === 'createCliente') {
+      const { nombre } = req.body;
+      if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' });
+      const { data: cliente, error: err } = await supabaseAdmin
+        .from('nomia_clientes').insert({ nombre: nombre.trim() }).select().single();
+      if (err) return res.status(400).json({ error: err.message });
+      // Crear configuración inicial
+      await supabaseAdmin.from('nomia_configuracion').insert({
+        cliente_id: cliente.id,
+        parametros: { basico: 0, cargas: 0, jornada: 8, dias_laborables: 22 },
+        macro: {},
+        bonos: [],
+      });
+      return res.status(200).json({ ok: true, cliente });
+    }
+
     if (action === 'remove') {
       const { id } = req.body;
       if (!id) return res.status(400).json({ error: 'Falta el id' });

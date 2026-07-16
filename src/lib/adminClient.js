@@ -29,6 +29,10 @@ export function invitarUsuario({ email, nombre, rol, clienteId }) {
   });
 }
 
+export function crearClienteAdmin(nombre) {
+  return callAdminUsers({ action: 'createCliente', nombre });
+}
+
 export function eliminarUsuario(id) {
   return callAdminUsers({ action: 'remove', id });
 }

@@ -8,7 +8,7 @@ import {
   empleadoFromDb, empleadoToDb, nextCodigo, conceptoFromDb, escenarioFromDb,
   clienteFromDb, perfilFromDb, costoRealFromDb, costoRealToDb,
 } from './lib/supabaseMappers.js';
-import { invitarUsuario, eliminarUsuario } from './lib/adminClient.js';
+import { invitarUsuario, eliminarUsuario, crearClienteAdmin } from './lib/adminClient.js';
 
 import Login from './screens/Login.jsx';
 import CompletarRegistro from './screens/CompletarRegistro.jsx';
@@ -412,9 +412,7 @@ function AppAutenticada({ perfil, onLogout }) {
   };
 
   const crearCliente = async (nombre) => {
-    const { data: cliente, error: err } = await supabase.from('nomia_clientes').insert({ nombre }).select().single();
-    if (err) return console.error(err);
-    await supabase.from('nomia_configuracion').insert({ cliente_id: cliente.id, parametros: DEFAULT_PARAMETROS, macro: DEFAULT_MACRO, bonos: DEFAULT_BONOS });
+    const { cliente } = await crearClienteAdmin(nombre);
     setClientes((prev) => [...prev, clienteFromDb(cliente)].sort((a, b) => a.nombre.localeCompare(b.nombre)));
   };
 
