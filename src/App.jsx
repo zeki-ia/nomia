@@ -64,10 +64,14 @@ export default function App() {
       if (data) {
         setPerfil(perfilFromDb(data));
       } else if (session.user.email?.endsWith('@delenio.net')) {
-        // Admin @delenio.net: crear fila real en nomia_perfiles para que RLS permita acceso a los datos
-        const adminPerfil = { id: session.user.id, email: session.user.email, nombre: session.user.email.split('@')[0], rol: 'admin', cliente_id: null };
-        await supabase.from('nomia_perfiles').upsert(adminPerfil, { onConflict: 'id' });
-        setPerfil({ id: session.user.id, email: session.user.email, nombre: adminPerfil.nombre, rol: 'admin', clienteId: null });
+        // Admin @delenio.net: crear perfil via hub API (service role bypasa RLS)
+        const { data: { session: s } } = await supabase.auth.getSession();
+        await fetch('https://hub.talenio.tech/api/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s?.access_token}` },
+          body: JSON.stringify({ action: 'syncAdminProfiles', adminUserId: session.user.id, adminEmail: session.user.email }),
+        }).catch(() => {});
+        setPerfil({ id: session.user.id, email: session.user.email, nombre: session.user.email.split('@')[0], rol: 'admin', clienteId: null });
       } else {
         setPerfil(null);
       }
@@ -129,15 +133,29 @@ function AppAutenticada({ perfil, onLogout }) {
   const [escenarios, setEscenarios] = useState([]);
   const [costosReales, setCostosReales] = useState([]);
 
-  // Clientes + perfiles: siempre se cargan (RLS ya limita a "los propios" si no sos admin).
+  // Clientes + perfiles: admins leen via hub API (service role bypasa RLS)
   useEffect(() => {
     (async () => {
-      const [clRes, pfRes] = await Promise.all([
-        supabase.from('nomia_clientes').select('*').order('nombre'),
-        supabase.from('nomia_perfiles').select('*').order('email'),
-      ]);
-      setClientes((clRes.data || []).map(clienteFromDb));
-      setPerfiles((pfRes.data || []).map(perfilFromDb));
+      let clientes = [];
+      if (esAdmin) {
+        try {
+          const { data: { session: s } } = await supabase.auth.getSession();
+          const res = await fetch('https://hub.talenio.tech/api/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s?.access_token}` },
+            body: JSON.stringify({ action: 'getNomiaClientes' }),
+          });
+          const json = await res.json();
+          clientes = (json.clientes || []).map(clienteFromDb);
+        } catch { /* fallback a Supabase */ }
+      }
+      if (!esAdmin || clientes.length === 0) {
+        const { data } = await supabase.from('nomia_clientes').select('*').order('nombre');
+        clientes = (data || []).map(clienteFromDb);
+      }
+      const { data: pfData } = await supabase.from('nomia_perfiles').select('*').order('email');
+      setClientes(clientes);
+      setPerfiles((pfData || []).map(perfilFromDb));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
