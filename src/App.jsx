@@ -176,6 +176,7 @@ function AppAutenticada({ perfil, onLogout }) {
   const [conceptosCustom, setConceptosCustom] = useState([]);
   const [escenarios, setEscenarios] = useState([]);
   const [costosReales, setCostosReales] = useState([]);
+  const [escSummary, setEscSummary] = useState([]); // resumen de escenarios para KPIs del selector
 
   // Clientes + perfiles: admins leen via hub API (service role bypasa RLS)
   useEffect(() => {
@@ -197,9 +198,13 @@ function AppAutenticada({ perfil, onLogout }) {
         const { data } = await supabase.from('nomia_clientes').select('*').order('nombre');
         clientes = (data || []).map(clienteFromDb);
       }
-      const { data: pfData } = await supabase.from('nomia_perfiles').select('*').order('email');
+      const [pfRes, escRes] = await Promise.all([
+        supabase.from('nomia_perfiles').select('*').order('email'),
+        supabase.from('nomia_escenarios').select('cliente_id, fecha'),
+      ]);
       setClientes(clientes);
-      setPerfiles((pfData || []).map(perfilFromDb));
+      setPerfiles((pfRes.data || []).map(perfilFromDb));
+      setEscSummary(escRes.data || []);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -433,7 +438,7 @@ function AppAutenticada({ perfil, onLogout }) {
           <Route path="/admin" element={<Navigate to="/" replace />} />
           <Route path="/*" element={
             !clienteActivoId ? (
-              <SeleccionarCliente clientes={clientes} perfiles={perfiles} onSeleccionar={setClienteActivoId} />
+              <SeleccionarCliente clientes={clientes} perfiles={perfiles} escSummary={escSummary} onSeleccionar={setClienteActivoId} />
             ) : (loading || !parametros) ? (
               <FullScreen><Spinner label="Cargando presupuesto…" /></FullScreen>
             ) : (
