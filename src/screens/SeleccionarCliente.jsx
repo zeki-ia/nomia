@@ -1,8 +1,13 @@
+import { useState } from 'react';
 import { TopBar, Page, Card } from '../components/ui.jsx';
 import { COLORS } from '../data/seed.js';
 
 export default function SeleccionarCliente({ clientes, perfiles, onSeleccionar }) {
+  const [searchQ, setSearchQ] = useState('');
   const nUsuarios = (clienteId) => perfiles.filter((p) => p.clienteId === clienteId).length;
+  const filtrados = searchQ
+    ? clientes.filter(c => c.nombre.toLowerCase().includes(searchQ.toLowerCase()))
+    : clientes;
 
   return (
     <>
@@ -22,8 +27,17 @@ export default function SeleccionarCliente({ clientes, perfiles, onSeleccionar }
             </div>
           </Card>
         ) : (
+          <>
+          <div style={{ marginBottom: 16 }}>
+            <input
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              placeholder="Buscar cliente…"
+              style={{ width: '100%', maxWidth: 340, padding: '9px 14px', borderRadius: 10, border: `1px solid ${COLORS.border}`, fontSize: 13.5, color: COLORS.navy, background: COLORS.surface, outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-            {clientes.map((c) => (
+            {filtrados.map((c) => (
               <button
                 key={c.id}
                 onClick={() => onSeleccionar(c.id)}
@@ -38,7 +52,13 @@ export default function SeleccionarCliente({ clientes, perfiles, onSeleccionar }
                 <div style={{ fontSize: 12, color: COLORS.muted }}>{nUsuarios(c.id)} usuario{nUsuarios(c.id) === 1 ? '' : 's'}</div>
               </button>
             ))}
+            {filtrados.length === 0 && (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: COLORS.muted, fontSize: 13.5 }}>
+                Sin resultados para "{searchQ}"
+              </div>
+            )}
           </div>
+          </>
         )}
       </Page>
     </>
