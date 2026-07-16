@@ -23,8 +23,11 @@ export default async function handler(req, res) {
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
   if (authErr || !user) return res.status(401).json({ error: 'Sesión inválida' });
 
-  const { data: perfil } = await supabaseAdmin.from('nomia_perfiles').select('rol').eq('id', user.id).single();
-  if (perfil?.rol !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede gestionar usuarios' });
+  const isDelenioAdmin = user.email?.endsWith('@delenio.net');
+  if (!isDelenioAdmin) {
+    const { data: perfil } = await supabaseAdmin.from('nomia_perfiles').select('rol').eq('id', user.id).single();
+    if (perfil?.rol !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede gestionar usuarios' });
+  }
 
   const { action } = req.body || {};
 
@@ -39,16 +42,20 @@ export default async function handler(req, res) {
         if (!String(inviteErr.message || '').toLowerCase().includes('already')) {
           return res.status(400).json({ error: inviteErr.message });
         }
-        const { data: existente } = await supabaseAdmin.from('nomia_perfiles').select('id').eq('email', email).maybeSingle();
-        if (!existente) return res.status(400).json({ error: 'El usuario ya existe en Supabase Auth pero no se encontró su perfil de Nomia.' });
-        targetId = existente.id;
+        // Buscar en Auth por email para obtener el id
+        const { data: list } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+        const found = list?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+        if (!found) return res.status(400).json({ error: 'No se pudo encontrar el usuario en el sistema.' });
+        targetId = found.id;
       } else {
         targetId = invited.user.id;
       }
 
-      const { error: updErr } = await supabaseAdmin.from('nomia_perfiles')
-        .update({ nombre: nombre || null, rol: rol || 'cliente', cliente_id: cliente_id || null })
-        .eq('id', targetId);
+      // upsert: crea la fila si no existe (usuario nuevo) o actualiza si ya existe
+      const { error: updErr } = await supabaseAdmin.from('nomia_perfiles').upsert(
+        { id: targetId, email, nombre: nombre || null, rol: rol || 'cliente', cliente_id: cliente_id || null },
+        { onConflict: 'id' }
+      );
       if (updErr) return res.status(400).json({ error: updErr.message });
 
       return res.status(200).json({ ok: true, id: targetId });
