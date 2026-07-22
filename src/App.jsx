@@ -244,6 +244,15 @@ function AppAutenticada({ perfil, onLogout }) {
     [empleados, parametros, macro, bonos, conceptosCustom]
   );
 
+  // Cache costoMensualARS in parametros so the cron can read it without a schema migration
+  useEffect(() => {
+    if (!presupuesto?.costoMensualARS || !parametros || !clienteActivoId) return;
+    const cached = parametros._presupuestoMensualARS;
+    if (JSON.stringify(cached) === JSON.stringify(presupuesto.costoMensualARS)) return;
+    updateParametros(prev => ({ ...prev, _presupuestoMensualARS: presupuesto.costoMensualARS }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presupuesto?.costoMensualARS?.join(','), clienteActivoId]);
+
   const pendingPatchRef = useRef({});
   const flushTimeoutRef = useRef(null);
   const persistConfiguracion = useCallback((patch) => {
@@ -385,10 +394,20 @@ function AppAutenticada({ perfil, onLogout }) {
   };
 
   const crearCostoReal = async (data) => {
+    const centroCosto = data.centroCosto || 'TOTAL';
     const { data: row, error: err } = await supabase.from('nomia_costos_reales')
-      .upsert(costoRealToDb(data, clienteActivoId), { onConflict: 'cliente_id,anio,mes,centro_costo' }).select().single();
+      .upsert(costoRealToDb({ ...data, centroCosto }, clienteActivoId), { onConflict: 'cliente_id,anio,mes,centro_costo' }).select().single();
     if (err) return console.error(err);
-    setCostosReales((prev) => [...prev.filter((c) => !(c.anio === data.anio && c.mes === data.mes && c.centroCosto === 'TOTAL')), costoRealFromDb(row)]);
+    setCostosReales((prev) => [
+      ...prev.filter((c) => !(c.anio === data.anio && c.mes === data.mes && c.centroCosto === centroCosto)),
+      costoRealFromDb(row),
+    ]);
+  };
+
+  const eliminarCostoRealById = async (id) => {
+    const { error: err } = await supabase.from('nomia_costos_reales').delete().eq('id', id);
+    if (err) return console.error(err);
+    setCostosReales((prev) => prev.filter((c) => c.id !== id));
   };
 
   const importarCostosReales = async (rows) => {
@@ -451,7 +470,7 @@ function AppAutenticada({ perfil, onLogout }) {
                 updateParametros={updateParametros} updateMacro={updateMacro} updateBonos={updateBonos}
                 crearConcepto={crearConcepto} actualizarConcepto={actualizarConcepto} eliminarConcepto={eliminarConcepto}
                 guardarEscenario={guardarEscenario} deleteEscenario={deleteEscenario}
-                crearCostoReal={crearCostoReal} eliminarCostoReal={eliminarCostoReal} importarCostosReales={importarCostosReales}
+                crearCostoReal={crearCostoReal} eliminarCostoReal={eliminarCostoReal} eliminarCostoRealById={eliminarCostoRealById} importarCostosReales={importarCostosReales}
               />
             )
           } />
@@ -465,12 +484,12 @@ function ClienteWorkspace({
   presupuesto, costosReales, empleados, parametros, macro, bonos, conceptosCustom, escenarios,
   onBulkUpdate, onBulkDelete, onSaveEmpleado, onDeleteEmpleado, onImportEmpleados,
   updateParametros, updateMacro, updateBonos, crearConcepto, actualizarConcepto, eliminarConcepto,
-  guardarEscenario, deleteEscenario, crearCostoReal, eliminarCostoReal, importarCostosReales,
+  guardarEscenario, deleteEscenario, crearCostoReal, eliminarCostoReal, eliminarCostoRealById, importarCostosReales,
 }) {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="dashboard" replace />} />
-      <Route path="dashboard" element={<Dashboard presupuesto={presupuesto} costosReales={costosReales} />} />
+      <Route path="dashboard" element={<Dashboard presupuesto={presupuesto} costosReales={costosReales} empleados={empleados} />} />
       <Route path="empleados" element={
         <EmpleadosRoute empleados={empleados} onBulkUpdate={onBulkUpdate} onBulkDelete={onBulkDelete} />
       } />
@@ -487,7 +506,13 @@ function ClienteWorkspace({
       <Route path="escenarios" element={<EscenariosRoute escenarios={escenarios} onGuardar={guardarEscenario} onDelete={deleteEscenario} presupuesto={presupuesto} />} />
       <Route path="escenarios/:id" element={<EscenarioDetailRoute escenarios={escenarios} presupuestoActual={presupuesto} costosReales={costosReales} />} />
       <Route path="real-vs-presupuesto" element={
-        <RealVsPresupuesto presupuesto={presupuesto} costosReales={costosReales} onCrear={crearCostoReal} onEliminar={eliminarCostoReal} onImportar={importarCostosReales} />
+        <RealVsPresupuesto
+          presupuesto={presupuesto} costosReales={costosReales}
+          onCrear={crearCostoReal} onEliminar={eliminarCostoReal}
+          onEliminarById={eliminarCostoRealById} onImportar={importarCostosReales}
+          alertaUmbral={parametros?._alertaUmbral ?? 0.05}
+          onUpdateUmbral={(v) => updateParametros(prev => ({ ...prev, _alertaUmbral: v }))}
+        />
       } />
       <Route path="reportes" element={<Reportes presupuesto={presupuesto} />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

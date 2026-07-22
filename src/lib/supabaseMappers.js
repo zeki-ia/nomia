@@ -16,6 +16,7 @@ export function empleadoFromDb(row) {
     bonoCustomerPct: Number(row.bono_customer_pct),
     horasExtraN: Number(row.horas_extra_n),
     mesesActivo: row.meses_activo,
+    fechaFin: row.fecha_fin || null,
   };
 }
 
@@ -33,6 +34,7 @@ export function empleadoToDb(data) {
     bono_customer_pct: data.bonoCustomerPct || 0,
     horas_extra_n: data.horasExtraN || 0,
     meses_activo: data.mesesActivo,
+    fecha_fin: data.fechaFin || null,
   };
 }
 

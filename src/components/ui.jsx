@@ -1,5 +1,76 @@
 import { NavLink } from 'react-router-dom';
+import { useState as _useState, useRef as _useRef, useEffect as _useEffect } from 'react';
 import { COLORS } from '../data/seed.js';
+
+function ClienteSearchSelect({ clientes, value, onChange }) {
+  const [open, setOpen] = _useState(false);
+  const [query, setQuery] = _useState('');
+  const ref = _useRef(null);
+  const inputRef = _useRef(null);
+  const active = clientes.find((c) => c.id === value);
+
+  _useEffect(() => {
+    function onClickOut(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOut);
+    return () => document.removeEventListener('mousedown', onClickOut);
+  }, []);
+
+  _useEffect(() => { if (open) { setQuery(''); setTimeout(() => inputRef.current?.focus(), 30); } }, [open]);
+
+  const filtered = query.trim()
+    ? clientes.filter((c) => c.nombre.toLowerCase().includes(query.toLowerCase()))
+    : clientes;
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen((v) => !v)} style={{
+        width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${COLORS.borderStrong}`,
+        fontSize: 12.5, fontWeight: 600, color: COLORS.navy, background: COLORS.bg,
+        textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {active?.nombre || '—'}
+        </span>
+        <span style={{ fontSize: 10, color: COLORS.muted, marginLeft: 6, flexShrink: 0 }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,.12)', marginTop: 4, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '6px 8px', borderBottom: `1px solid ${COLORS.border}` }}>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar cliente…"
+              style={{
+                width: '100%', padding: '6px 8px', borderRadius: 7, border: `1px solid ${COLORS.border}`,
+                fontSize: 12.5, color: COLORS.navy, boxSizing: 'border-box', outline: 'none',
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: '10px 12px', fontSize: 12, color: COLORS.muted }}>Sin resultados</div>
+            )}
+            {filtered.map((c) => (
+              <button key={c.id} onClick={() => { onChange(c.id); setOpen(false); }} style={{
+                width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
+                background: c.id === value ? COLORS.primarySoft : 'transparent',
+                color: c.id === value ? COLORS.primary : COLORS.navy,
+                fontSize: 12.5, fontWeight: c.id === value ? 700 : 500, cursor: 'pointer',
+                borderBottom: `1px solid ${COLORS.border}`,
+              }}>{c.nombre}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: '◇' },
@@ -33,16 +104,11 @@ export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, o
 
       {esAdmin && clientes && clienteActivoId && (
         <div style={{ padding: '0 20px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <select
-            value={clienteActivoId || ''}
-            onChange={(e) => onCambiarCliente(Number(e.target.value))}
-            style={{
-              width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${COLORS.borderStrong}`,
-              fontSize: 12.5, fontWeight: 600, color: COLORS.navy, background: COLORS.bg,
-            }}
-          >
-            {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select>
+          <ClienteSearchSelect
+            clientes={clientes}
+            value={clienteActivoId}
+            onChange={onCambiarCliente}
+          />
           <button
             onClick={onVolverAClientes}
             style={{ background: 'none', border: 'none', textAlign: 'left', fontSize: 11.5, color: COLORS.muted, fontWeight: 600, cursor: 'pointer', padding: '2px 2px' }}
@@ -78,6 +144,26 @@ export function Sidebar({ perfil, clientes, clienteActivoId, onCambiarCliente, o
           >
             <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>◆</span>
             Administración (Hub)
+          </a>
+        )}
+
+        {/* Cross-app link: Climia */}
+        {(!esAdmin || clienteActivoId) && (
+          <a
+            href="https://app.climia.talenio.tech"
+            target="_blank" rel="noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 10,
+              fontSize: 12.5, fontWeight: 600, marginTop: 8,
+              color: '#0E8F8B', textDecoration: 'none', background: '#E6F8F7',
+              border: '1px solid #B2EFEC',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <polyline points="1,10 4,6 6.5,7.5 8,4 9.5,7.5 12,5.5 13,10" stroke="#13B0AC" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Ver clima del equipo
+            <span style={{ marginLeft: 'auto', fontSize: 10, opacity: .6 }}>↗</span>
           </a>
         )}
       </nav>

@@ -83,6 +83,119 @@ function MonthlyRatesRow({ label, hint, values, onChange }) {
   );
 }
 
+// Computes compounded annual total from monthly rates array (index 0 is base month, not used)
+function compoundedAnnual(rates) {
+  let acc = 1;
+  for (let i = 1; i < rates.length; i++) acc *= (1 + (rates[i] ?? 0));
+  return acc - 1;
+}
+
+function InflacionPanel({ ipcRates, ajusteRates, onFillIpc, onFillAjuste }) {
+  const [showFill, setShowFill] = useState(false);
+  const [mode, setMode] = useState('uniform'); // 'uniform' | 'quarterly'
+  const [uniform, setUniform] = useState('3');
+  const [q1, setQ1] = useState('4'); const [q2, setQ2] = useState('3'); const [q3, setQ3] = useState('2.5'); const [q4, setQ4] = useState('2');
+  const [target, setTarget] = useState('ipc'); // 'ipc' | 'ajuste' | 'both'
+
+  const ipcAcum = compoundedAnnual(ipcRates);
+  const ajusteAcum = compoundedAnnual(ajusteRates);
+
+  function buildRates() {
+    // index 0 = base (unused), indices 1-11 = monthly rates
+    const rates = Array(12).fill(0);
+    if (mode === 'uniform') {
+      const v = Number(uniform) / 100;
+      for (let i = 1; i < 12; i++) rates[i] = v;
+    } else {
+      // quarterly: Q1=Ene-Mar(idx1-3), Q2=Abr-Jun(4-6), Q3=Jul-Sep(7-9), Q4=Oct-Dic(10-11+wrap)
+      const vals = [Number(q1)/100, Number(q2)/100, Number(q3)/100, Number(q4)/100];
+      for (let i = 1; i < 12; i++) rates[i] = vals[Math.floor((i - 1) / 3)];
+    }
+    return rates;
+  }
+
+  function apply() {
+    const rates = buildRates();
+    if (target === 'ipc' || target === 'both') onFillIpc(rates);
+    if (target === 'ajuste' || target === 'both') onFillAjuste(rates);
+    setShowFill(false);
+  }
+
+  const accent = COLORS.primary;
+  const soft = COLORS.primarySoft;
+
+  return (
+    <div style={{ background: soft, borderRadius: 14, padding: '14px 18px', marginBottom: 24, border: `1px solid ${COLORS.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: COLORS.navy }}>Resumen de inflación proyectada</div>
+        <div style={{ display: 'flex', gap: 20, marginLeft: 8 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>IPC acumulado anual</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: accent, fontFamily: 'Sora, sans-serif' }}>
+              +{(ipcAcum * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>Ajuste salarial acumulado</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.green, fontFamily: 'Sora, sans-serif' }}>
+              +{(ajusteAcum * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>Brecha real/salario</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: ipcAcum > ajusteAcum ? COLORS.danger : COLORS.green, fontFamily: 'Sora, sans-serif' }}>
+              {((ajusteAcum - ipcAcum) * 100).toFixed(1)}pp
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setShowFill(!showFill)} style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, border: `1.5px solid ${accent}`, background: showFill ? accent : '#fff', color: showFill ? '#fff' : accent, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+          {showFill ? '✕ Cerrar' : '⚡ Rellenar rápido'}
+        </button>
+      </div>
+
+      {showFill && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${COLORS.border}` }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600, alignSelf: 'center', marginRight: 4 }}>Modo:</div>
+            {[['uniform', 'Tasa uniforme'], ['quarterly', 'Por trimestre']].map(([k, l]) => (
+              <button key={k} onClick={() => setMode(k)} style={{ padding: '5px 12px', borderRadius: 20, border: `1.5px solid ${mode === k ? accent : COLORS.border}`, background: mode === k ? soft : '#fff', color: mode === k ? accent : COLORS.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{l}</button>
+            ))}
+            <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600, alignSelf: 'center', marginLeft: 8 }}>Aplicar a:</div>
+            {[['ipc', 'IPC'], ['ajuste', 'Ajuste sal.'], ['both', 'Ambos']].map(([k, l]) => (
+              <button key={k} onClick={() => setTarget(k)} style={{ padding: '5px 12px', borderRadius: 20, border: `1.5px solid ${target === k ? accent : COLORS.border}`, background: target === k ? soft : '#fff', color: target === k ? accent : COLORS.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{l}</button>
+            ))}
+          </div>
+
+          {mode === 'uniform' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <label style={{ fontSize: 13, color: COLORS.navy, fontWeight: 600 }}>Tasa mensual (%):</label>
+              <input type="number" step="0.1" min="0" value={uniform} onChange={(e) => setUniform(e.target.value)}
+                style={{ ...inputStyle, width: 100 }} />
+              <span style={{ fontSize: 12, color: COLORS.muted }}>→ acumulado anual: <b>{((Math.pow(1 + Number(uniform)/100, 11) - 1) * 100).toFixed(1)}%</b></span>
+            </div>
+          )}
+          {mode === 'quarterly' && (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+              {[['Q1 (Ene–Mar)', q1, setQ1], ['Q2 (Abr–Jun)', q2, setQ2], ['Q3 (Jul–Sep)', q3, setQ3], ['Q4 (Oct–Dic)', q4, setQ4]].map(([label, val, setFn]) => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 4 }}>{label}</div>
+                  <input type="number" step="0.1" min="0" value={val} onChange={(e) => setFn(e.target.value)}
+                    style={{ ...inputStyle, width: 72, textAlign: 'center' }} />
+                  <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 2 }}>% / mes</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={apply} style={{ padding: '8px 20px', borderRadius: 9, background: accent, color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Aplicar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MacroTab({ macro, setMacro }) {
   const set = (key, value) => setMacro((m) => ({ ...m, [key]: value }));
   const setTC = (key, field, value) => setMacro((m) => ({
@@ -95,6 +208,7 @@ function MacroTab({ macro, setMacro }) {
     const arr = [...m.tiposCambio[key].devaluacionPct]; arr[i] = value;
     return { ...m, tiposCambio: { ...m.tiposCambio, [key]: { ...m.tiposCambio[key], devaluacionPct: arr } } };
   });
+  const fillMonthly = (key, rates) => setMacro((m) => ({ ...m, [key]: rates }));
 
   return (
     <Card>
@@ -105,6 +219,13 @@ function MacroTab({ macro, setMacro }) {
           </select>
         </Field>
       </div>
+
+      <InflacionPanel
+        ipcRates={macro.ipcMensualPct}
+        ajusteRates={macro.ajusteSalarialPct}
+        onFillIpc={(rates) => fillMonthly('ipcMensualPct', rates)}
+        onFillAjuste={(rates) => fillMonthly('ajusteSalarialPct', rates)}
+      />
 
       <MonthlyRatesRow
         label="IPC mensual (%)"

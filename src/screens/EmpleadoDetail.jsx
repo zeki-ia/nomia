@@ -7,7 +7,7 @@ const BLANK = {
   codigo: '', legajo: '', nombre: '', cargo: '', seniority: 'Standard', centroCosto: CECOS[0].code,
   fechaIngreso: '2026-01-01', sueldoBase: 1000000,
   comisionPct: 0, bonoCustomerPct: 0, horasExtraN: 0,
-  mesesActivo: Array(12).fill(1),
+  mesesActivo: Array(12).fill(1), fechaFin: '',
 };
 
 export default function EmpleadoDetail({ empleado, empleados = [], onSave, onDelete, onBack, isNew }) {
@@ -65,6 +65,9 @@ export default function EmpleadoDetail({ empleado, empleados = [], onSave, onDel
             </Field>
             <Field label="Fecha de ingreso">
               <input type="date" style={inputStyle} value={form.fechaIngreso?.slice(0, 10)} onChange={(e) => set('fechaIngreso', e.target.value)} />
+            </Field>
+            <Field label="Fin de contrato" hint="Opcional — activa alertas 30/15/7 días antes">
+              <input type="date" style={inputStyle} value={form.fechaFin?.slice(0, 10) || ''} onChange={(e) => set('fechaFin', e.target.value || null)} />
             </Field>
             <Field label="Sueldo base ARS (Ene)">
               <input type="number" style={inputStyle} value={form.sueldoBase} onChange={(e) => set('sueldoBase', Number(e.target.value))} />

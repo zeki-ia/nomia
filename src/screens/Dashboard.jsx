@@ -6,7 +6,7 @@ import { COLORS, MESES } from '../data/seed.js';
 import { fmtARS, fmtUSD, fmtNum, fmtPct, calcularDesvios } from '../lib/payrollEngine.js';
 import { generarResumenEjecutivo } from '../lib/aiClient.js';
 
-export default function Dashboard({ presupuesto, costosReales }) {
+export default function Dashboard({ presupuesto, costosReales, empleados = [] }) {
   const navigate = useNavigate();
   const [resumen, setResumen] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,6 +39,56 @@ export default function Dashboard({ presupuesto, costosReales }) {
     setLoading(false);
   };
 
+  const isEmpty = presupuesto.headcountPromedio === 0;
+
+  // Contract expiry alerts — 30/15/7 day thresholds
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const vencimientos = empleados
+    .filter((e) => e.fechaFin)
+    .map((e) => {
+      const fin = new Date(e.fechaFin); fin.setHours(0, 0, 0, 0);
+      const dias = Math.round((fin - today) / (1000 * 60 * 60 * 24));
+      return { ...e, dias };
+    })
+    .filter((e) => e.dias >= 0 && e.dias <= 30)
+    .sort((a, b) => a.dias - b.dias);
+
+  if (isEmpty) {
+    return (
+      <>
+        <TopBar title="Dashboard" subtitle="Presupuesto de payroll" />
+        <Page>
+          <div style={{ maxWidth: 540, margin: '32px auto', textAlign: 'center' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>🚀</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.navy, marginBottom: 8, fontFamily: 'Sora, sans-serif' }}>
+              ¡Empezá tu presupuesto!
+            </div>
+            <div style={{ fontSize: 14, color: COLORS.muted, lineHeight: 1.65, marginBottom: 32 }}>
+              Todavía no hay empleados cargados. Seguí estos 3 pasos para tener tu primer presupuesto de payroll.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', marginBottom: 32 }}>
+              {[
+                { n: 1, icon: '👥', title: 'Cargá tus empleados', desc: 'Importá un Excel con tu nómina o agregalos uno a uno.', path: '/empleados', label: 'Ir a Empleados' },
+                { n: 2, icon: '⚙️', title: 'Configurá los parámetros', desc: 'Definí los supuestos macro: inflación, ajuste salarial y tipos de cambio.', path: '/parametros', label: 'Ir a Parámetros' },
+                { n: 3, icon: '📊', title: 'Generá tu primer presupuesto', desc: 'Con los empleados cargados el dashboard se activa automáticamente. Podés guardar escenarios para comparar supuestos.', path: '/escenarios', label: 'Ver Escenarios' },
+              ].map((s) => (
+                <div key={s.n} style={{ display: 'flex', gap: 14, padding: '16px 18px', borderRadius: 14, border: `1.5px solid ${COLORS.border}`, background: '#fff', alignItems: 'flex-start' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: COLORS.primarySoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{s.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.primary, letterSpacing: 0.5, marginBottom: 2 }}>PASO {s.n}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.navy, marginBottom: 3 }}>{s.title}</div>
+                    <div style={{ fontSize: 12.5, color: COLORS.muted, lineHeight: 1.5 }}>{s.desc}</div>
+                  </div>
+                  <Button variant="secondary" onClick={() => navigate(s.path)} style={{ flexShrink: 0, alignSelf: 'center' }}>{s.label} →</Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Page>
+      </>
+    );
+  }
+
   return (
     <>
       <TopBar title="Dashboard" subtitle="Presupuesto de payroll 2026" actions={
@@ -50,6 +100,41 @@ export default function Dashboard({ presupuesto, costosReales }) {
             {loading && <Spinner label="Analizando el presupuesto…" />}
             {error && <div style={{ color: COLORS.danger, fontSize: 13.5 }}>{error}</div>}
             {resumen && <div style={{ fontSize: 14, color: COLORS.navy, lineHeight: 1.6 }}>{resumen}</div>}
+          </Card>
+        )}
+
+        {vencimientos.length > 0 && (
+          <Card style={{ background: '#fffbea', border: '1.5px solid #fcd34d', padding: '14px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 18 }}>⚠️</span>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: '#92400e' }}>
+                {vencimientos.length === 1 ? '1 contrato por vencer' : `${vencimientos.length} contratos por vencer`}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {vencimientos.map((e) => {
+                const urgency = e.dias <= 7 ? { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', label: `${e.dias}d` }
+                  : e.dias <= 15 ? { bg: '#fff7ed', border: '#fdba74', text: '#9a3412', label: `${e.dias}d` }
+                  : { bg: '#fffbea', border: '#fde68a', text: '#92400e', label: `${e.dias}d` };
+                return (
+                  <div key={e.id} onClick={() => navigate(`/empleados/${e.id}`)} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+                    borderRadius: 9, background: urgency.bg, border: `1px solid ${urgency.border}`, cursor: 'pointer',
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: urgency.text }}>{e.nombre}</span>
+                      <span style={{ fontSize: 12, color: COLORS.muted, marginLeft: 8 }}>{e.cargo} · {e.centroCosto}</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: urgency.text, background: '#fff', borderRadius: 6, padding: '3px 8px', border: `1px solid ${urgency.border}` }}>
+                      {e.dias === 0 ? 'Hoy' : `${urgency.label} restantes`}
+                    </div>
+                    <div style={{ fontSize: 11, color: COLORS.muted }}>
+                      {new Date(e.fechaFin).toLocaleDateString('es-AR')}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </Card>
         )}
 
